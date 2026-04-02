@@ -1,0 +1,2265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+(function(){
+  if(sessionStorage.getItem('auth')==='ok') return;
+  document.addEventListener('DOMContentLoaded',function(){
+    var ov=document.getElementById('pw-overlay');
+    if(ov) ov.style.display='flex';
+  });
+})();
+</script>
+<title>건대 상권 경쟁 병원 분석 v3</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="tourism_data.js" onerror="window.TOURISM_DATA=null"></script>
+<script src="datalab_data.js" onerror="window.DATALAB_DATA=null"></script>
+<script src="branches_data.js" onerror="window.BRANCHES_DATA=null"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#07080f;--surface:#0e1018;--surface2:#161923;--surface3:#1e2435;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --accent:#4f8fff;--accent2:#ff6b6b;--green:#3dd68c;--yellow:#ffd166;
+  --purple:#b48ef4;--cyan:#06d6a0;--orange:#ff9f43;
+  --text:#e8eaf2;--text2:#9ba3bf;--text3:#5a6382;
+  --my-color:#ff6b6b;--mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(79,143,255,0.03)1px,transparent 1px),linear-gradient(90deg,rgba(79,143,255,0.03)1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+
+header{position:sticky;top:0;z-index:100;background:rgba(7,8,15,0.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:56px;}
+.header-left{display:flex;align-items:center;gap:16px;}
+.logo-mark{width:28px;height:28px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:white;font-family:var(--mono);}
+.header-title{font-size:14px;font-weight:700;}
+.header-title span{color:var(--accent);}
+.header-right{display:flex;align-items:center;gap:12px;}
+.data-badge{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:4px 12px;font-size:11px;font-family:var(--mono);color:var(--text2);}
+.data-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.source-note{font-size:10px;color:var(--text3);}
+
+.nav{display:flex;gap:2px;padding:12px 32px 0;border-bottom:1px solid var(--border);background:var(--bg);overflow-x:auto;position:relative;z-index:1;}
+.nav-tab{padding:8px 16px 10px;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0;border:1px solid transparent;border-bottom:none;transition:all .2s;white-space:nowrap;}
+.nav-tab:hover{color:var(--text2);}
+.nav-tab.active{color:var(--accent);background:var(--surface);border-color:var(--border);border-bottom-color:var(--surface);margin-bottom:-1px;}
+
+main{position:relative;z-index:1;padding:28px 32px;max-width:1600px;margin:0 auto;}
+.section{display:none;animation:fadeIn .3s ease;}
+.section.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px;}
+@media(max-width:1100px){.kpi-row{grid-template-columns:repeat(3,1fr);}}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;position:relative;overflow:hidden;transition:border-color .2s,transform .2s;}
+.kpi-card:hover{border-color:var(--border2);transform:translateY(-1px);}
+.kpi-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent);}
+.kpi-card.green::after{background:var(--green);}
+.kpi-card.yellow::after{background:var(--yellow);}
+.kpi-card.purple::after{background:var(--purple);}
+.kpi-card.red::after{background:var(--accent2);}
+.kpi-card.cyan::after{background:var(--cyan);}
+.kpi-label{font-size:10px;color:var(--text3);letter-spacing:.5px;margin-bottom:8px;font-weight:600;text-transform:uppercase;}
+.kpi-value{font-size:22px;font-weight:800;letter-spacing:-1px;font-family:var(--mono);}
+.kpi-sub{font-size:10px;color:var(--text2);margin-top:4px;}
+.kpi-src{font-size:9px;color:var(--text3);margin-top:6px;font-family:var(--mono);}
+
+.sec-title{display:flex;align-items:center;gap:12px;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3);margin-bottom:14px;}
+.sec-title::after{content:'';flex:1;height:1px;background:var(--border);}
+.sec-title .tag{background:var(--surface3);border:1px solid var(--border2);border-radius:4px;padding:2px 8px;font-size:9px;color:var(--text2);}
+
+.table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);margin-bottom:24px;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead{background:var(--surface2);}
+th{padding:10px 12px;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;border-bottom:1px solid var(--border2);white-space:nowrap;text-align:center;}
+th.left{text-align:left;}
+td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:center;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tbody tr:hover td{background:rgba(255,255,255,0.02);}
+tbody tr.mine td{background:rgba(255,107,107,0.04);}
+tbody tr.mine td:first-child{border-left:2px solid var(--my-color);}
+.name-cell{text-align:left!important;}
+.hname{font-weight:600;}
+.mine .hname{color:var(--my-color);font-weight:700;}
+.hsub{font-size:10px;color:var(--text3);margin-top:2px;}
+
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;font-family:var(--mono);}
+.badge-blue{background:rgba(79,143,255,.15);color:var(--accent);border:1px solid rgba(79,143,255,.3);}
+.badge-red{background:rgba(255,107,107,.15);color:var(--accent2);border:1px solid rgba(255,107,107,.3);}
+.badge-green{background:rgba(61,214,140,.15);color:var(--green);border:1px solid rgba(61,214,140,.3);}
+.badge-yellow{background:rgba(255,209,102,.15);color:var(--yellow);border:1px solid rgba(255,209,102,.3);}
+.badge-gray{background:rgba(90,99,130,.15);color:var(--text3);border:1px solid rgba(90,99,130,.3);}
+.badge-purple{background:rgba(180,142,244,.15);color:var(--purple);border:1px solid rgba(180,142,244,.3);}
+
+/* 확인필요 배지 */
+.unverified{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:9px;font-weight:600;background:rgba(90,99,130,.1);color:var(--text3);border:1px dashed rgba(90,99,130,.4);}
+
+.ch-list{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;}
+.ch-tag{padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;}
+.ch-naver{background:rgba(3,199,90,.15);color:#03c75a;border:1px solid rgba(3,199,90,.3);}
+.ch-insta{background:rgba(225,48,108,.15);color:#e1306c;border:1px solid rgba(225,48,108,.3);}
+.ch-youtube{background:rgba(255,0,0,.15);color:#ff4444;border:1px solid rgba(255,0,0,.3);}
+.ch-meta{background:rgba(24,119,242,.15);color:#1877f2;border:1px solid rgba(24,119,242,.3);}
+.ch-tiktok{background:rgba(105,201,208,.15);color:#69c9d0;border:1px solid rgba(105,201,208,.3);}
+.ch-google{background:rgba(234,67,53,.15);color:#ea4335;border:1px solid rgba(234,67,53,.3);}
+.ch-kakao{background:rgba(254,229,0,.15);color:#b8a800;border:1px solid rgba(254,229,0,.3);}
+
+.ad-dot-row{display:flex;gap:3px;justify-content:center;}
+.ad-icon{width:16px;height:16px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;}
+
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+@media(max-width:900px){.chart-grid{grid-template-columns:1fr;}}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;}
+.chart-card-title{font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.5px;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.chart-card-title .src{font-size:9px;color:var(--text3);font-weight:400;margin-left:auto;}
+canvas{max-height:220px;}
+
+/* 의사 카드 */
+.doctor-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:24px;}
+.doctor-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;}
+.doctor-card.mine{border-color:rgba(255,107,107,.3);}
+.dc-name{font-size:13px;font-weight:700;margin-bottom:12px;}
+.mine .dc-name{color:var(--my-color);}
+.dc-main{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.dc-count{font-size:36px;font-weight:900;font-family:var(--mono);color:var(--accent);}
+.dc-count-label{font-size:10px;color:var(--text3);margin-top:2px;}
+.dc-visual{display:flex;flex-wrap:wrap;gap:5px;max-width:120px;}
+.dc-person{width:18px;height:22px;background:var(--accent);border-radius:3px 3px 0 0;opacity:.7;position:relative;}
+.dc-person::before{content:'';position:absolute;top:-7px;left:50%;transform:translateX(-50%);width:10px;height:10px;background:var(--accent);border-radius:50%;}
+.dc-person.pay{background:var(--yellow);opacity:.5;}
+.dc-person.pay::before{background:var(--yellow);}
+.dc-details{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.dc-detail{background:var(--surface2);border-radius:6px;padding:7px 9px;}
+.dc-detail-label{font-size:9px;color:var(--text3);margin-bottom:2px;}
+.dc-detail-val{font-size:12px;font-weight:700;font-family:var(--mono);}
+
+/* 마케팅 카드 */
+.mkt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-bottom:24px;}
+.mkt-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;}
+.mkt-card.mine{border-color:rgba(255,107,107,.3);}
+.mkt-card-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;}
+.mkt-name{font-size:13px;font-weight:700;}
+.mine .mkt-name{color:var(--my-color);}
+.channel-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:12px;}
+.ch-item{border-radius:6px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;gap:3px;border:1px solid var(--border);background:var(--surface2);}
+.ch-item.active{border-color:rgba(255,255,255,.15);background:var(--surface3);}
+.ch-item .ch-icon{font-size:13px;}
+.ch-item .ch-name{font-size:8px;color:var(--text3);font-weight:600;}
+.ch-item.active .ch-name{color:var(--text2);}
+.ad-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;}
+.ad-item{background:var(--surface2);border-radius:6px;padding:8px 10px;}
+.ad-item-label{font-size:9px;color:var(--text3);margin-bottom:3px;}
+.ad-item-val{font-size:11px;font-weight:700;}
+.content-detail{background:var(--surface2);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:5px;}
+.content-row{display:flex;justify-content:space-between;align-items:center;font-size:11px;}
+.content-label{color:var(--text3);}
+.theme-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;}
+.theme-tag{font-size:9px;padding:2px 8px;border-radius:10px;background:var(--surface3);color:var(--text2);border:1px solid var(--border);}
+
+/* 이벤트 */
+.event-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;}
+.event-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;}
+.event-card.mine{border-color:rgba(255,107,107,0.3);background:rgba(255,107,107,0.03);}
+.event-card-name{font-size:14px;font-weight:700;margin-bottom:2px;}
+.mine .event-card-name{color:var(--my-color);}
+.event-updated{font-size:10px;color:var(--text3);margin-bottom:14px;}
+.event-stats-row{display:flex;gap:8px;margin-bottom:14px;}
+.event-stat-mini{background:var(--surface2);border-radius:6px;padding:6px 10px;text-align:center;flex:1;}
+.event-stat-mini-val{font-size:14px;font-weight:800;font-family:var(--mono);}
+.event-stat-mini-label{font-size:9px;color:var(--text3);margin-top:2px;}
+.event-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+.event-item{background:var(--surface2);border-radius:8px;padding:10px 12px;display:flex;align-items:flex-start;gap:10px;}
+.event-tag{font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(79,143,255,0.15);color:var(--accent);white-space:nowrap;flex-shrink:0;margin-top:2px;}
+.event-name-text{font-size:12px;flex:1;line-height:1.5;}
+.event-price-wrap{text-align:right;flex-shrink:0;min-width:80px;}
+.event-price{font-size:12px;font-weight:700;font-family:var(--mono);color:var(--green);}
+.event-original{font-size:10px;color:var(--text3);text-decoration:line-through;font-family:var(--mono);}
+.event-period{font-size:10px;color:var(--text3);margin-top:2px;}
+.proc-section-title{font-size:10px;font-weight:700;color:var(--text3);margin-bottom:8px;letter-spacing:.4px;}
+.proc-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.proc-chip{font-size:10px;padding:3px 10px;border-radius:10px;background:var(--surface3);color:var(--text2);border:1px solid var(--border);}
+
+/* 트렌드 */
+.trend-notice{background:rgba(79,143,255,.06);border:1px solid rgba(79,143,255,.2);border-radius:8px;padding:14px 18px;font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:20px;}
+.trend-notice b{color:var(--accent);}
+.trend-chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
+.trend-chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.trend-chart-title{font-size:12px;font-weight:700;color:var(--text2);}
+
+/* 외국인 */
+.intl-notice{background:rgba(255,209,102,.06);border:1px solid rgba(255,209,102,.2);border-radius:8px;padding:14px 18px;font-size:12px;color:var(--yellow);line-height:1.8;margin-bottom:20px;}
+.intl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:24px;}
+.intl-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;}
+.intl-card.mine{border-color:rgba(255,107,107,.3);}
+.intl-card-name{font-size:13px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.mine .intl-card-name{color:var(--my-color);}
+.lang-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.lang-label{font-size:10px;color:var(--text2);width:60px;flex-shrink:0;}
+.lang-bar{flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden;}
+.lang-fill{height:100%;border-radius:3px;}
+.lang-pct{font-size:10px;font-family:var(--mono);color:var(--text3);width:35px;text-align:right;}
+.intl-meta{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;}
+.intl-meta-item{background:var(--surface2);border-radius:6px;padding:7px 9px;}
+.intl-meta-label{font-size:9px;color:var(--text3);margin-bottom:2px;}
+.intl-meta-val{font-size:11px;font-weight:700;}
+
+/* 데이터 입력 */
+.input-notice{background:rgba(79,143,255,.06);border:1px solid rgba(79,143,255,.2);border-radius:8px;padding:14px 18px;font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:20px;}
+.input-notice b{color:var(--accent);}
+.input-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+.input-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;}
+.input-card h3{font-size:13px;font-weight:700;margin-bottom:14px;color:var(--accent);}
+.input-card.mine h3{color:var(--my-color);}
+.form-row{margin-bottom:10px;}
+.form-row label{display:block;font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:600;letter-spacing:.3px;}
+.form-row input,.form-row select,.form-row textarea{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--text);font-family:'Noto Sans KR',sans-serif;transition:border-color .2s;}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:none;border-color:var(--accent);}
+.form-row select option{background:var(--surface2);}
+.save-btn{width:100%;background:var(--accent);color:white;border:none;border-radius:6px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:opacity .2s;margin-top:6px;}
+.save-btn:hover{opacity:.85;}
+
+/* 데이터 소스 */
+.source-panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:24px;}
+.source-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:14px;}
+.source-item{background:var(--surface2);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;}
+.source-item-header{display:flex;align-items:center;gap:8px;}
+.source-avail{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.avail-yes{background:var(--green);}.avail-partial{background:var(--yellow);}.avail-no{background:var(--accent2);}
+.source-name{font-size:11px;font-weight:700;}
+.source-desc{font-size:10px;color:var(--text3);line-height:1.5;}
+.source-url{font-size:9px;color:var(--accent);font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div id="pw-overlay" style="display:none;position:fixed;inset:0;background:#07080f;z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:20px">
+  <div style="text-align:center;margin-bottom:8px">
+    <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-1px">🏥 건대 상권 분석</div>
+    <div style="font-size:13px;color:#5a6382;margin-top:6px">접근 제한된 대시보드입니다</div>
+  </div>
+  <div style="background:#0e1018;border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:32px 36px;display:flex;flex-direction:column;gap:14px;min-width:280px">
+    <input id="pw-input" type="password" placeholder="비밀번호 입력" autofocus
+      style="background:#161923;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:12px 16px;color:#fff;font-size:16px;outline:none;letter-spacing:4px;text-align:center"
+      onkeydown="if(event.key==='Enter')checkPw()">
+    <button onclick="checkPw()"
+      style="background:#4f8fff;border:none;border-radius:8px;padding:12px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">
+      입장하기
+    </button>
+    <div id="pw-err" style="display:none;text-align:center;font-size:12px;color:#ff6b6b">비밀번호가 틀렸습니다</div>
+  </div>
+</div>
+<script>
+function checkPw(){
+  if(document.getElementById('pw-input').value==='1004'){
+    sessionStorage.setItem('auth','ok');
+    document.getElementById('pw-overlay').style.display='none';
+  } else {
+    document.getElementById('pw-err').style.display='block';
+    document.getElementById('pw-input').value='';
+    document.getElementById('pw-input').focus();
+  }
+}
+</script>
+
+<header>
+  <div class="header-left">
+    <div class="logo-mark">K</div>
+    <div class="header-title">건대 상권 <span>경쟁 병원 분석</span> <span style="color:var(--text3);font-weight:400;font-size:12px;">v3.0</span></div>
+  </div>
+  <div class="header-right">
+    <div class="data-badge"><div class="dot"></div><span id="today-date"></span></div>
+    <div class="source-note">심평원 · 네이버 · 구글맵 · 메타광고라이브러리 · 인스타 직접조사</div>
+  </div>
+</header>
+
+<div class="nav">
+  <div class="nav-tab active" onclick="tab('overview',this)">📊 종합 현황</div>
+  <div class="nav-tab" onclick="tab('trend',this)">📈 트렌드 추적</div>
+  <div class="nav-tab" onclick="tab('doctor',this)">👨‍⚕️ 의사·규모</div>
+  <div class="nav-tab" onclick="tab('intl',this)">🌏 외국인 리뷰</div>
+  <div class="nav-tab" onclick="tab('marketing',this)">📣 마케팅 현황</div>
+  <div class="nav-tab" onclick="tab('foreigner',this)">🌏 외국인 트래픽</div>
+  <div class="nav-tab" onclick="tab('charts',this)">📊 차트 비교</div>
+  <div class="nav-tab" onclick="tab('events',this)">🎪 이벤트 현황</div>
+  <div class="nav-tab" onclick="tab('revenue',this)">💰 매출 추정</div>
+  <div class="nav-tab" onclick="tab('input',this)">✏️ 데이터 입력</div>
+  <div class="nav-tab" onclick="tab('franchise',this)">🏢 프랜차이즈 비교</div>
+  <div class="nav-tab" onclick="tab('sources',this)">🗂️ 데이터 소스</div>
+</div>
+
+<main>
+
+<!-- ═══ 종합 현황 ═══ -->
+<div id="tab-overview" class="section active">
+  <div class="kpi-row">
+    <div class="kpi-card red">
+      <div class="kpi-label">우리 병원 구글 별점</div>
+      <div class="kpi-value">4.0★</div>
+      <div class="kpi-sub">리뷰 25개 · 상권 내 최하위</div>
+      <div class="kpi-src">📍 구글맵 직접 확인</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">우리 병원 네이버 리뷰</div>
+      <div class="kpi-value">2,872</div>
+      <div class="kpi-sub">데이뷰(4,778) 다음 2위</div>
+      <div class="kpi-src">📍 네이버 플레이스 직접 확인</div>
+    </div>
+    <div class="kpi-card yellow">
+      <div class="kpi-label">우리 병원 인스타 팔로워</div>
+      <div class="kpi-value">3,200</div>
+      <div class="kpi-sub">상권 내 최하위 (에버스 12K)</div>
+      <div class="kpi-src">📍 인스타그램 직접 확인</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">의사 수 (심평원)</div>
+      <div class="kpi-value">1명</div>
+      <div class="kpi-sub">전문의 1명 · 상권 평균 1.9명</div>
+      <div class="kpi-src">📍 심평원 공공데이터</div>
+    </div>
+    <div class="kpi-card cyan">
+      <div class="kpi-label">마케팅 채널</div>
+      <div class="kpi-value">2개</div>
+      <div class="kpi-sub">네이버·인스타 운영 중</div>
+      <div class="kpi-src">📍 직접 확인</div>
+    </div>
+  </div>
+
+  <div class="sec-title">경쟁 병원 종합 현황 <span class="tag">확인된 데이터만 표시 · 미확인 항목은 ? 표시</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="left" style="min-width:150px">병원명 <span style="font-weight:400;color:#5a6382">(심평원)</span></th>
+          <th>의사수<br><span style="font-size:8px;color:#5a6382">심평원</span></th>
+          <th>네이버★<br><span style="font-size:8px;color:#5a6382">리뷰수</span></th>
+          <th>구글★<br><span style="font-size:8px;color:#5a6382">리뷰수</span></th>
+          <th>인스타<br><span style="font-size:8px;color:#5a6382">팔로워</span></th>
+          <th>메타광고<br><span style="font-size:8px;color:#5a6382">광고라이브러리</span></th>
+          <th>네이버SA<br><span style="font-size:8px;color:#5a6382">검색광고</span></th>
+          <th>마케팅 채널<br><span style="font-size:8px;color:#5a6382">직접확인</span></th>
+          <th>페이닥터<br><span style="font-size:8px;color:#5a6382">구인사이트</span></th>
+          <th>현재 주요 이벤트<br><span style="font-size:8px;color:#5a6382">홈페이지</span></th>
+        </tr>
+      </thead>
+      <tbody id="main-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ 트렌드 추적 ═══ -->
+<div id="tab-trend" class="section">
+  <div class="trend-notice">
+    📌 <b>트렌드 추적 안내</b><br>
+    매주 또는 매월 네이버 리뷰수·인스타 팔로워를 직접 확인해서 "데이터 입력" 탭에 기록하면 아래 차트가 자동으로 채워집니다.<br>
+    현재는 <b>2026.04.02</b> 시작점 데이터만 입력되어 있습니다. 다음 주부터 추적을 시작하세요.
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card" style="grid-column:1/-1">
+      <div class="chart-card-title">네이버 리뷰수 추이 <span class="src">네이버 플레이스 직접 확인</span></div>
+      <canvas id="c-trend-review" style="max-height:200px"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">인스타 팔로워 추이 <span class="src">인스타그램 직접 확인</span></div>
+      <canvas id="c-trend-insta" style="max-height:200px"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">구글 리뷰수 추이 <span class="src">구글맵 직접 확인</span></div>
+      <canvas id="c-trend-google" style="max-height:200px"></canvas>
+    </div>
+  </div>
+
+  <div class="sec-title" style="margin-top:28px">네이버 검색량 트렌드 <span class="tag">네이버 데이터랩 API · 상대지수 0~100</span></div>
+  <div style="font-size:11px;color:var(--text3);margin-bottom:16px">검색량이 가장 많은 달을 100으로 환산한 상대값입니다. 병원 인지도·마케팅 효과를 간접적으로 확인할 수 있습니다.</div>
+
+  <!-- 건대 상권 전체 분석 -->
+  <div style="background:var(--surface2);border-radius:12px;padding:20px 24px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:700;color:var(--text1);margin-bottom:14px">🏙️ 건대 상권 전체 흐름 분석 <span style="font-size:10px;font-weight:400;color:var(--text3)">"건대 피부과·미용의원" 검색량 기준 · 네이버 데이터랩</span></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+      <div style="background:var(--surface3);border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:9px;color:var(--text3);margin-bottom:3px">2024 상반기 평균</div>
+        <div style="font-size:18px;font-weight:700;color:var(--text2)">37</div>
+        <div style="font-size:9px;color:var(--text3)">기준지수</div>
+      </div>
+      <div style="background:var(--surface3);border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:9px;color:var(--text3);margin-bottom:3px">2025 상반기 평균</div>
+        <div style="font-size:18px;font-weight:700;color:var(--green)">70</div>
+        <div style="font-size:9px;color:var(--green)">+89% ↑</div>
+      </div>
+      <div style="background:var(--surface3);border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:9px;color:var(--text3);margin-bottom:3px">역대 최고 시점</div>
+        <div style="font-size:18px;font-weight:700;color:var(--yellow)">100</div>
+        <div style="font-size:9px;color:var(--yellow)">2025년 4월</div>
+      </div>
+      <div style="background:rgba(255,107,107,0.1);border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:9px;color:var(--text3);margin-bottom:3px">최근 (2026년 초)</div>
+        <div style="font-size:18px;font-weight:700;color:var(--accent2)">28~35</div>
+        <div style="font-size:9px;color:var(--accent2)">비수기 급감</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+      <div style="background:var(--surface3);border-radius:8px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:var(--accent);margin-bottom:6px">📈 상권 규모</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.8;word-break:keep-all">
+          2024→2025년 상권 전체 검색량이 실질 성장했습니다. 특히 <b style="color:var(--yellow)">봄(4~5월)·여름(7~8월)</b>에 수요가 집중되는 뚜렷한 계절성이 확인됩니다. 시장 자체는 아직 성장 국면이며, 2025년 4월이 역대 최대 수요 시점이었습니다.
+        </div>
+      </div>
+      <div style="background:var(--surface3);border-radius:8px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:var(--accent2);margin-bottom:6px">🔄 점유 재편</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.8;word-break:keep-all">
+          2024년 초 톡스앤필 단독 검색량이 상권 일반 검색의 <b style="color:var(--accent2)">약 2배</b>로 사실상 독점 구도였습니다. 현재는 톡스앤필이 상권 일반 검색과 비슷한 수준으로 하락하며 <b>독점 지배력이 붕괴</b>됐고, 톤즈·데이뷰 등으로 수요가 분산되는 중입니다.
+        </div>
+      </div>
+      <div style="background:var(--surface3);border-radius:8px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:var(--yellow);margin-bottom:6px">⚠️ 현재 국면</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.8;word-break:keep-all">
+          2025년 11월부터 상권 전체 검색량이 급감해 현재 비수기 국면입니다. 봄 시즌(3~5월)이 연중 최대 수요 시점으로, 해당 시기 전후 마케팅 집중도가 실적에 직접 영향을 줄 가능성이 높습니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 전체 추이 종합 총평 -->
+  <div style="background:linear-gradient(135deg,rgba(79,143,255,0.07),rgba(61,214,140,0.05));border:1px solid rgba(79,143,255,0.2);border-radius:12px;padding:20px 24px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:700;color:var(--text1);margin-bottom:12px">🔍 전체 검색량 추이 종합</div>
+    <div style="font-size:12px;color:var(--text2);line-height:2;word-break:keep-all">
+      2024년 초 건대 상권 검색량은 <b style="color:var(--accent)">톡스앤필이 압도적 1위</b>로 시장을 주도했으나, 이후 2년간 지속적으로 하락하면서 상권 내 경쟁 구도가 재편되고 있습니다.<br>
+      가장 주목할 변수는 <b style="color:var(--green)">2025년 3월 개원한 톤즈의원</b>입니다. 개원 2개월 만에 검색량이 폭발적으로 증가했고, 2026년 초에도 높은 검색량을 유지하며 현재 상권 내 가장 강력한 신규 경쟁자로 부상했습니다. 틱톡·메타 등 젊은 층 중심 채널을 적극 공략한 결과로 보입니다.<br>
+      <b style="color:var(--yellow)">데이뷰</b>는 2024년 초 강한 마케팅 드라이브를 걸었다가 이후 안정화됐으며, 현재는 톡스앤필 하락분의 수혜를 일부 흡수하며 꾸준한 수준을 유지 중입니다.<br>
+      <b style="color:var(--accent)">우리 병원(예쁨주의쁨)</b>은 절대 검색량은 낮지만 2024년 대비 2025년에 꾸준히 성장하고 있으며, <b style="color:var(--yellow)">봄철(3~5월)마다 검색량이 반복적으로 상승</b>하는 계절 패턴이 확인됩니다. 이 시기에 집중 마케팅을 투입하면 효과가 클 것으로 판단됩니다.<br>
+      전반적으로 <b style="color:var(--accent2)">기존 강자(톡스앤필)의 약화 + 신규 강자(톤즈)의 부상</b>이 진행 중인 과도기 국면으로, 지금이 점유율 확대의 기회 시점입니다.
+    </div>
+  </div>
+
+  <!-- 검색량 총평 -->
+  <div style="background:var(--surface2);border-radius:12px;padding:20px 24px;margin-bottom:20px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="grid-column:1/-1;font-size:13px;font-weight:700;color:var(--text1);margin-bottom:4px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+      📊 검색량 트렌드 총평 <span style="font-size:10px;font-weight:400;color:var(--text3)">2024.01 ~ 2026.03 기준</span>
+    </div>
+    <div style="background:var(--surface3);border-radius:8px;padding:12px 14px">
+      <div style="font-size:11px;font-weight:700;color:var(--accent2);margin-bottom:5px">📉 톡스앤필 — 지속 하락</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7">2024년 1월 상권 내 압도적 1위였으나 이후 꾸준히 하락. 현재 최고점 대비 약 <b style="color:var(--accent2)">65% 감소</b>. 마케팅 축소 또는 브랜드 노출 채널 이동 가능성.</div>
+    </div>
+    <div style="background:var(--surface3);border-radius:8px;padding:12px 14px">
+      <div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:5px">🚀 톤즈 — 가장 빠른 성장</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7">2025년 3월 개원. 개원 직전 1~2월 수치(0.8, 0.09)는 간판·소문 수준. <b style="color:var(--green)">개원 직후 5월에 검색량 폭발적 증가</b>, 2026년 1~2월에도 그룹 내 최고 수준 유지. 현재 상권 내 가장 공격적 마케팅 집행 중.</div>
+    </div>
+    <div style="background:rgba(255,209,102,0.07);border:1px solid rgba(255,209,102,0.2);border-radius:8px;padding:12px 14px;grid-column:1/-1">
+      <div style="font-size:11px;font-weight:700;color:var(--yellow);margin-bottom:6px">🏠 예쁨주의쁨 (우리 병원) — 추이 분석</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
+        <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:8px;text-align:center">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">2024년 월평균</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text2)">6.3</div>
+        </div>
+        <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:8px;text-align:center">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">2025년 월평균</div>
+          <div style="font-size:16px;font-weight:700;color:var(--yellow)">10.2</div>
+        </div>
+        <div style="background:rgba(0,0,0,0.2);border-radius:6px;padding:8px;text-align:center">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">2025년 5월 피크</div>
+          <div style="font-size:16px;font-weight:700;color:var(--green)">13.5</div>
+        </div>
+        <div style="background:rgba(255,107,107,0.15);border-radius:6px;padding:8px;text-align:center">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">2026년 1~2월 평균</div>
+          <div style="font-size:16px;font-weight:700;color:var(--accent2)">9.0</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:5px">✅ 긍정 신호</div>
+          <div style="font-size:11px;color:var(--text2);line-height:1.8;word-break:keep-all">
+            • 2024→2025 연간 검색량 <b style="color:var(--green)">+62% 성장</b><br>
+            • 봄철(3~5월) 시즌 효과가 매년 강화 (8.2→13.5)<br>
+            • 비수기 기저 자체도 상승 (5~7 → 9~11)<br>
+            • 브랜드 인지도 꾸준히 누적 중
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--accent2);margin-bottom:5px">⚠️ 우려 신호 · 개선 필요</div>
+          <div style="font-size:11px;color:var(--text2);line-height:1.8;word-break:keep-all">
+            • 2025년 5월 피크(13.5) 이후 <b style="color:var(--accent2)">하락 전환</b> — 2026년 초 9대로 후퇴<br>
+            • 경쟁사 대비 절대 검색량 <b style="color:var(--accent2)">최하위권</b> (톡스앤필 36, 유앤아이 19 대비 9)<br>
+            • 봄 시즌 외 비수기 검색량 유지 안됨 — <b style="color:var(--accent2)">시즌 의존도 과다</b><br>
+            • 신규 경쟁자(톤즈) 급성장으로 상대적 격차 확대 중<br>
+            • 검색량 낮다 = 브랜드 노출 부족 = <b style="color:var(--accent2)">매출 정체 직결</b>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.07);font-size:11px;color:var(--text3);line-height:1.8;word-break:keep-all">
+        💡 <b style="color:var(--yellow)">데이터 기반 시사점</b> — 연간 성장세는 유지되고 있습니다. 데이터상 확인되는 것은 봄 시즌 외 비수기 검색량 하락이 매년 반복된다는 점이며, 비수기 마케팅 보완이 필요한 구간입니다. 상권 내 경쟁 강도는 높아지고 있어 현 추세 유지만으로는 점유율 확대를 기대하기 어렵습니다.
+      </div>
+    </div>
+    <div style="background:var(--surface3);border-radius:8px;padding:12px 14px">
+      <div style="font-size:11px;font-weight:700;color:var(--purple);margin-bottom:5px">⚡ 닥터쁘띠 — 불규칙 스파이크</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7">평소 검색량 거의 없다가 <b style="color:var(--purple)">2025년 3월·5월 갑자기 20배 급등</b>. 특정 캠페인·콘텐츠 바이럴 추정. 지속성 없이 소멸.</div>
+    </div>
+    <div style="background:var(--surface3);border-radius:8px;padding:12px 14px">
+      <div style="font-size:11px;font-weight:700;color:var(--cyan);margin-bottom:5px">🆕 닥터에버스 — 신규 진입</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7">2025년 8월 개업 후 검색량 발생. 초반 15~20 수준으로 빠르게 안착했으나 <b style="color:var(--cyan)">최근 하락 전환</b>. 초기 마케팅 효과 소진 여부 모니터링 필요.</div>
+    </div>
+    <div style="background:var(--surface3);border-radius:8px;padding:12px 14px">
+      <div style="font-size:11px;font-weight:700;color:var(--orange);margin-bottom:5px">❓ 유앤아이 — 2024년 가을 이상급등</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7"><b style="color:var(--orange)">2024년 9~10월 검색량 급등</b> (평소 대비 2배 이상). 원인 불명 — 이슈·언론 노출·이벤트 등 확인 필요. 이후 정상 수준 복귀.</div>
+    </div>
+  </div>
+  <div id="datalab-notice" style="display:none;background:rgba(255,209,102,.06);border:1px solid rgba(255,209,102,.2);border-radius:8px;padding:12px 16px;font-size:11px;color:var(--yellow);margin-bottom:14px">
+    ⚠️ datalab_data.js 파일이 없습니다. <code>python fetch_datalab.py</code> 를 실행하세요.
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card" style="grid-column:1/-1">
+      <div class="chart-card-title">병원별 네이버 검색량 비교 <span class="src">네이버 데이터랩 · <span id="datalab-updated"></span></span></div>
+      <canvas id="c-datalab-all" style="max-height:240px"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">우리 병원 검색량 추이 <span class="src">네이버 데이터랩</span></div>
+      <canvas id="c-datalab-mine" style="max-height:200px"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">경쟁 TOP3 비교 <span class="src">검색량 상위 3개 병원</span></div>
+      <canvas id="c-datalab-top3" style="max-height:200px"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 의사·규모 ═══ -->
+<div id="tab-doctor" class="section">
+  <div class="sec-title">병원별 의사 현황 <span class="tag">심평원 공공데이터 기준 · 닥터쁘띠 광진구 미등록 확인 필요</span></div>
+  <div class="doctor-grid" id="doctor-cards"></div>
+</div>
+
+<!-- ═══ 외국인 리뷰 ═══ -->
+<div id="tab-intl" class="section">
+  <div class="intl-notice">
+    ⚠️ <b>확인 방법</b><br>
+    구글맵에서 각 병원 검색 → 리뷰 탭 → 언어 필터로 직접 확인. 샘플 수가 적은 병원은 신뢰도 낮음.<br>
+    아래 데이터는 각 병원 구글 리뷰를 직접 확인해서 입력한 값입니다. 미확인 병원은 ? 로 표시.
+  </div>
+  <div class="intl-grid" id="intl-cards"></div>
+</div>
+
+<!-- ═══ 마케팅 현황 ═══ -->
+<div id="tab-marketing" class="section">
+  <div class="sec-title">마케팅 채널 현황 <span class="tag">채널 운영 직접 확인 · 메타 광고 라이브러리 · 인스타 직접 조사</span></div>
+  <div class="mkt-grid" id="mkt-cards"></div>
+</div>
+
+<!-- ═══ 외국인 트래픽 ═══ -->
+<div id="tab-foreigner" class="section">
+  <div id="fg-notice-sample" style="display:none;background:rgba(255,209,102,.06);border:1px solid rgba(255,209,102,.2);border-radius:8px;padding:14px 18px;font-size:12px;color:var(--yellow);line-height:1.8;margin-bottom:20px;">
+    ⚠️ <b>현재 샘플 데이터입니다.</b> 실제 데이터를 수집하려면:<br>
+    <span style="font-family:var(--mono);font-size:11px;">
+      pip install requests python-dateutil<br>
+      python fetch_tourism.py --kosis [KOSIS키] --seoul [서울키]
+    </span><br>
+    KOSIS 키: <a href="https://kosis.kr/openapi/devGuide.do" target="_blank" style="color:var(--accent)">kosis.kr/openapi/devGuide.do</a>
+    서울시 키: <a href="https://data.seoul.go.kr" target="_blank" style="color:var(--accent)">data.seoul.go.kr</a>
+  </div>
+  <div id="fg-notice-live" style="display:none;background:rgba(61,214,140,.06);border:1px solid rgba(61,214,140,.2);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--green);line-height:1.8;margin-bottom:20px;">
+    ✅ <b>한국관광공사(KTO) 공식 통계 기반</b> · 기준: <span id="fg-updated"></span><br>
+    <span style="color:rgba(255,255,255,.55);font-size:11px;">
+      ★ 확인치: 1·2·3·10·11·12월 전체 총계 및 10·12월 국적별 세부 / 나머지 월은 연간합계(16,369,629명) 기준 추산<br>
+      출처: datalab.visitkorea.or.kr · know.tour.go.kr · 한국관광공사 월별 보도자료
+    </span>
+  </div>
+
+  <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)" id="fg-kpis"></div>
+
+  <div class="sec-title">방한 외래관광객 월별 추이 <span class="tag">KOSIS · 한국관광공사</span></div>
+  <div class="chart-card" style="margin-bottom:16px">
+    <div class="chart-card-title">전체 방한 외국인 월별 입국자 수 <span class="src">국적별 합계</span></div>
+    <canvas id="fg-c-total" style="max-height:200px"></canvas>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-card-title">국적별 방문자 비중 (최신 월) <span class="src">KOSIS</span></div>
+      <canvas id="fg-c-nation-pie"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">국적별 월별 추이 <span class="src">KOSIS</span></div>
+      <canvas id="fg-c-nation-line"></canvas>
+    </div>
+  </div>
+
+  <div class="sec-title">서울 자치구별 외국인 방문자 비교 <span class="tag">서울 열린데이터광장 · 광진구 포함</span></div>
+  <div class="chart-card" style="margin-bottom:16px">
+    <div class="chart-card-title">자치구별 외국인 방문자 수 비교 <span id="fg-district-years">(2024 vs 2025)</span> <span class="src">KTO 기반 추산</span></div>
+    <canvas id="fg-c-district" style="max-height:220px"></canvas>
+  </div>
+
+  <div class="sec-title">광진구 외국인 방문자 월별 추이 <span class="tag">건대 상권 직접 연관</span></div>
+  <div class="chart-card" style="margin-bottom:16px">
+    <div class="chart-card-title">광진구 월별 외국인 방문 추이 <span class="src">추정 포함</span></div>
+    <canvas id="fg-c-gwangjin" style="max-height:180px"></canvas>
+  </div>
+
+  <div style="background:var(--surface2);border-radius:8px;padding:14px 18px;font-size:11px;color:var(--text3);line-height:1.9;margin-top:8px;">
+    📌 <b style="color:var(--text2)">데이터 한계 안내</b><br>
+    · 구별 데이터는 연간 단위 / 월별은 통신사 로밍 추정치 포함<br>
+    · 의료미용 업종 단독 소비 데이터는 <b style="color:var(--yellow)">서울시 빅데이터캠퍼스</b>(현장 방문) 에서만 확인 가능<br>
+    · 개별 병원 외국인 환자 수는 어떤 공공데이터로도 확인 불가<br>
+    · 스크립트를 주 1회 실행하면 트렌드 자동 갱신됩니다
+  </div>
+</div>
+
+<!-- ═══ 차트 비교 ═══ -->
+<div id="tab-charts" class="section">
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-card-title">네이버 리뷰수 비교 <span class="src">네이버 플레이스</span></div>
+      <canvas id="c-review"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">구글 별점 비교 <span class="src">구글맵</span></div>
+      <canvas id="c-gstar"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">구글 리뷰수 비교 <span class="src">구글맵</span></div>
+      <canvas id="c-greview"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">인스타 팔로워 비교 <span class="src">인스타그램</span></div>
+      <canvas id="c-insta"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">의사 수 비교 <span class="src">심평원</span></div>
+      <canvas id="c-doctor"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">마케팅 채널 수 비교 <span class="src">직접 확인</span></div>
+      <canvas id="c-mkt"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 이벤트 현황 ═══ -->
+<div id="tab-events" class="section">
+  <div class="sec-title">이벤트 현황 비교 <span class="tag">홈페이지·네이버 플레이스 직접 수집 · 2026.04.02 기준</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="left" style="min-width:130px">병원명</th>
+          <th>이벤트 수</th>
+          <th>가격 공개 수</th>
+          <th>최대 할인율</th>
+          <th>첫방문 이벤트</th>
+          <th>주요 카테고리</th>
+        </tr>
+      </thead>
+      <tbody id="event-compare-tbody"></tbody>
+    </table>
+  </div>
+  <div class="event-grid" id="event-cards"></div>
+</div>
+
+<!-- ═══ 데이터 입력 ═══ -->
+<div id="tab-input" class="section">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+    <button onclick="resetAll()" style="background:rgba(255,107,107,0.12);border:1px solid rgba(255,107,107,0.3);color:var(--accent2);border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">🗑️ 전체 초기화</button>
+  </div>
+  <div class="input-notice">
+    💡 <b>주간 업데이트 체크리스트</b><br>
+    ① 네이버 플레이스 → 각 병원 리뷰수 확인<br>
+    ② 구글맵 → 별점·리뷰수 확인<br>
+    ③ 인스타그램 → 팔로워 수 확인<br>
+    ④ <a href="https://facebook.com/ads/library" target="_blank" style="color:var(--accent)">메타 광고 라이브러리</a> → 광고 집행 여부 확인<br>
+    ⑤ <a href="https://www.medistaff.co.kr" target="_blank" style="color:var(--accent)">메디스태프</a> / <a href="https://www.yesdoc.co.kr" target="_blank" style="color:var(--accent)">예스의사</a> → 페이닥터 구인 여부 확인
+  </div>
+  <div class="input-grid" id="input-cards"></div>
+</div>
+
+<!-- ═══ 매출 추정 ═══ -->
+<div id="tab-revenue" class="section">
+  <div style="background:rgba(255,209,102,.06);border:1px solid rgba(255,209,102,.25);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:12px;color:var(--yellow);line-height:1.8">
+    ⚠️ <b>추정치 안내</b> — 네이버 리뷰 수와 개업 기간을 기반으로 한 간접 추정입니다. 실제 매출과 차이가 클 수 있습니다.<br>
+    <span style="color:var(--text2)">공식: 월 내원 환자 = (총 리뷰 ÷ 개업 개월수) ÷ 리뷰 작성율 &nbsp;|&nbsp; 월 매출 = 월 내원 환자 × 평균 시술 단가</span>
+  </div>
+
+  <!-- 가정값 조정 -->
+  <div style="background:var(--surface2);border-radius:10px;padding:18px 20px;margin-bottom:24px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
+    <div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">리뷰 작성율 (%)</div>
+      <input type="range" id="rv-rate" min="1" max="10" step="0.5" value="4.5" style="width:100%;accent-color:var(--accent)" oninput="updateRevenue()">
+      <div style="font-size:13px;font-weight:700;color:var(--accent);margin-top:4px"><span id="rv-rate-val">4.5</span>%</div>
+      <div style="font-size:10px;color:var(--text3)">미용의원 평균 3~7%</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">평균 시술 단가 (만원)</div>
+      <input type="range" id="rv-price" min="10" max="80" step="5" value="25" style="width:100%;accent-color:var(--green)" oninput="updateRevenue()">
+      <div style="font-size:13px;font-weight:700;color:var(--green);margin-top:4px"><span id="rv-price-val">25</span>만원</div>
+      <div style="font-size:10px;color:var(--text3)">보정 가능 (시술 구성에 따라)</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">재방문율 (%)</div>
+      <input type="range" id="rv-return" min="0" max="80" step="5" value="40" style="width:100%;accent-color:var(--yellow)" oninput="updateRevenue()">
+      <div style="font-size:13px;font-weight:700;color:var(--yellow);margin-top:4px"><span id="rv-return-val">40</span>%</div>
+      <div style="font-size:10px;color:var(--text3)">재방문은 리뷰 미작성 가정</div>
+    </div>
+  </div>
+
+  <!-- 결과 테이블 -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="left">병원명</th>
+          <th>개업<br><span style="font-size:8px;color:#5a6382">연도</span></th>
+          <th>네이버<br>리뷰수</th>
+          <th>월 신규<br>리뷰 추정</th>
+          <th>월 내원<br>환자 추정</th>
+          <th>월 매출<br>추정</th>
+          <th>연 매출<br>추정</th>
+          <th>의사 1인당<br>월 매출</th>
+        </tr>
+      </thead>
+      <tbody id="rv-tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="chart-grid" style="margin-top:24px">
+    <div class="chart-card" style="grid-column:1/-1">
+      <div class="chart-card-title">병원별 월 매출 추정 비교 <span class="src">네이버 리뷰 기반 간접 추정</span></div>
+      <canvas id="c-revenue" style="max-height:220px"></canvas>
+    </div>
+  </div>
+
+  <!-- 매출 추이 (records 기반) -->
+  <div class="sec-title" style="margin-top:24px">📈 매출 추정 추이 <span class="tag">수집 시점별 리뷰 증가 기반</span></div>
+  <div style="background:var(--surface2);border-radius:10px;padding:18px 20px;margin-bottom:16px">
+    <div id="rv-trend-info" style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:16px"></div>
+    <div class="table-wrap" style="margin-bottom:16px">
+      <table>
+        <thead>
+          <tr>
+            <th class="left">병원명</th>
+            <th>이전<br>리뷰수</th>
+            <th>현재<br>리뷰수</th>
+            <th>기간 내<br>신규 리뷰</th>
+            <th>일평균<br>리뷰</th>
+            <th>월 환산<br>내원 추정</th>
+            <th>월 매출<br>추정</th>
+            <th>이전 대비<br>변동</th>
+          </tr>
+        </thead>
+        <tbody id="rv-trend-tbody"></tbody>
+      </table>
+    </div>
+    <div class="chart-card" style="background:var(--surface3)">
+      <div class="chart-card-title">병원별 월 매출 추정 변동 <span class="src">이전 수집 → 현재 수집 비교</span></div>
+      <canvas id="c-revenue-trend" style="max-height:220px"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 데이터 소스 ═══ -->
+<div id="tab-franchise" class="section">
+  <div id="franchise-no-data" style="display:none;background:var(--surface2);border-radius:12px;padding:32px;text-align:center;color:var(--text3)">
+    branches_data.js 파일이 없습니다. <code>python compare_branches.py</code> 실행 후 새로고침하세요.
+  </div>
+  <div id="franchise-content">
+    <!-- KPI 카드 -->
+    <div class="kpi-row" id="franchise-kpi"></div>
+
+    <!-- 월별 변동 분석 (동적) -->
+    <div class="sec-title">📅 이번 달 변동 <span class="tag" id="monthly-period-tag">전월 대비 · 전년 동월 대비</span></div>
+    <div id="franchise-monthly" style="margin-bottom:24px"></div>
+
+    <!-- 지점 순위 바 차트 -->
+    <div class="sec-title">전국 지점 검색량 순위 <span class="tag">네이버 데이터랩 · 강남점 기준 교정 · 동일 5개 키워드 패턴</span></div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:14px">모든 지점에 동일한 키워드 패턴 적용 (지역+예쁨주의쁨 / 예쁨주의쁨의원 / 쁨의원 / 쁨클리닉 / 예쁨주의쁨의원+지역). 강남점을 매 배치 앵커로 교정.</div>
+    <div class="chart-card" style="margin-bottom:24px">
+      <div class="chart-card-title">지점별 평균 검색지수 (교정값) <span class="src">높을수록 브랜드 검색 수요 많음</span></div>
+      <canvas id="c-branch-bar" style="max-height:380px"></canvas>
+    </div>
+
+    <!-- 월별 추이 라인 차트 -->
+    <div class="sec-title" style="margin-top:8px">상위 지점 월별 추이 <span class="tag">2024.01 ~ 2026.02</span></div>
+    <div class="chart-grid" style="margin-bottom:24px">
+      <div class="chart-card" style="grid-column:1/-1">
+        <div class="chart-card-title">상위 8개 지점 검색량 추이 <span class="src">강남 기준 교정 상대지수</span></div>
+        <canvas id="c-branch-trend" style="max-height:280px"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">건대점 단독 추이 <span class="src">우리 병원</span></div>
+        <canvas id="c-branch-mine" style="max-height:200px"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">건대 vs 상위 3개 지점 비교</div>
+        <canvas id="c-branch-vs" style="max-height:200px"></canvas>
+      </div>
+    </div>
+
+    <!-- 2024 vs 2025 성장률 -->
+    <div class="sec-title" style="margin-top:8px">2024 → 2025 성장률 <span class="tag">연도별 월평균 검색지수 비교</span></div>
+    <div id="franchise-growth" style="margin-bottom:24px"></div>
+
+    <!-- 강남 vs 잠실 전용 비교 -->
+    <div class="sec-title" style="margin-top:8px">강남 · 잠실 · 건대 비교 <span class="tag">서울 3개 지점 직접 비교</span></div>
+    <div class="chart-card" style="margin-bottom:24px">
+      <div class="chart-card-title">강남 / 잠실 / 건대 월별 검색량 추이 <span class="src">같은 스케일로 직접 비교 가능</span></div>
+      <canvas id="c-branch-seoul" style="max-height:220px"></canvas>
+    </div>
+
+    <!-- 분석 카드 -->
+    <div class="sec-title">지점별 분석</div>
+    <div id="franchise-analysis" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px"></div>
+
+    <!-- 인사이트 -->
+    <div id="franchise-insight" style="background:linear-gradient(135deg,rgba(79,143,255,0.07),rgba(61,214,140,0.05));border:1px solid rgba(79,143,255,0.2);border-radius:12px;padding:20px 24px;margin-bottom:28px"></div>
+
+    <!-- 마케팅 전략 진단 -->
+    <div class="sec-title">🎯 프랜차이즈 마케팅 전략 진단 <span class="tag">데이터 기반 · 2024~2026</span></div>
+
+    <!-- 진단 요약 배너 -->
+    <div style="background:rgba(255,107,107,0.07);border:1px solid rgba(255,107,107,0.25);border-radius:12px;padding:18px 22px;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:700;color:var(--accent2);margin-bottom:8px">⚠️ 핵심 진단: 광고 의존형 마케팅 → 브랜드 자산 미축적</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.9;word-break:keep-all">
+        전국 16개 지점 중 <b style="color:var(--accent2)">2024→2025년 검색량이 증가한 지점은 6개뿐 (38%)</b>, 나머지 62%는 정체·하락. 이는 개원 초기 집중 광고 후 자연 유입 없이 빠지는 <b>광고 의존형 구조의 전형적 패턴</b>입니다. 경쟁사 톤즈의원이 콘텐츠 마케팅으로 개원 2개월 만에 건대 상권 검색량 1위를 달성한 것과 대조됩니다.
+      </div>
+    </div>
+
+    <!-- 진단 카드 그리드 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+
+      <!-- 예쁨주의쁨 vs 톤즈 SNS 비교 -->
+      <div style="background:var(--surface2);border-radius:12px;padding:18px 20px">
+        <div style="font-size:12px;font-weight:700;color:var(--yellow);margin-bottom:14px">📱 SNS 마케팅 비교 — 예쁨주의쁨 vs 톤즈</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+          <div style="background:rgba(255,107,107,0.08);border-radius:8px;padding:12px">
+            <div style="font-size:10px;color:var(--text3);margin-bottom:6px">예쁨주의쁨 @ppeum000</div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.8">
+              팔로워 <b style="color:var(--accent2)">13,000명</b><br>
+              게시물 957개<br>
+              게시물당 팔로워 <b style="color:var(--accent2)">13.5명</b><br>
+              유튜브 채널 <b style="color:var(--accent2)">미확인</b><br>
+              틱톡 <b style="color:var(--accent2)">없음</b>
+            </div>
+          </div>
+          <div style="background:rgba(61,214,140,0.08);border-radius:8px;padding:12px">
+            <div style="font-size:10px;color:var(--text3);margin-bottom:6px">톤즈의원 (2025.03 개원)</div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.8">
+              인스타 <b style="color:var(--green)">본사 주도</b> 운영<br>
+              유튜브 <b style="color:var(--green)">본사 채널 운영</b><br>
+              틱톡 <b style="color:var(--green)">적극 활용</b><br>
+              개원 2개월 만에<br>
+              <b style="color:var(--green)">건대 상권 검색 1위</b>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.7;background:var(--surface3);border-radius:6px;padding:10px">
+          예쁨주의쁨은 957개 게시물을 올렸음에도 팔로워 13,000명 — 콘텐츠 바이럴이 전혀 일어나지 않는 구조. 광고·홍보성 게시물 중심이라 알고리즘 노출이 낮은 것으로 판단됩니다.
+        </div>
+      </div>
+
+      <!-- 브랜드 구조 문제 -->
+      <div style="background:var(--surface2);border-radius:12px;padding:18px 20px">
+        <div style="font-size:12px;font-weight:700;color:var(--accent2);margin-bottom:14px">🏗️ 브랜드 구조 문제</div>
+        <div style="font-size:11px;color:var(--text2);line-height:2;word-break:keep-all">
+          <div style="background:var(--surface3);border-radius:6px;padding:10px;margin-bottom:8px">
+            <b style="color:var(--accent2)">분산 웹사이트</b> — ppeum1.com ~ ppeum31.com<br>
+            지점마다 별도 사이트 → <b>SEO 분산, 브랜드 인지도 분열</b><br>
+            구글 검색 시 "예쁨주의쁨" 브랜드 파워 약화
+          </div>
+          <div style="background:var(--surface3);border-radius:6px;padding:10px;margin-bottom:8px">
+            <b style="color:var(--yellow)">두 개의 브랜드 병행</b> — 예쁨주의쁨의원 vs 쁨글로벌의원<br>
+            내국인 = 예쁨주의쁨 / 외국인 = 쁨글로벌<br>
+            브랜드 인지도가 두 곳으로 분산
+          </div>
+          <div style="background:var(--surface3);border-radius:6px;padding:10px">
+            <b style="color:var(--accent2)">본사 통합 콘텐츠 없음</b><br>
+            각 지점이 개별 광고 집행 → 예산 비효율<br>
+            지점 규모 작을수록 마케팅 포기 → 검색량 0
+          </div>
+        </div>
+      </div>
+
+      <!-- 광고 의존 패턴 데이터 -->
+      <div style="background:var(--surface2);border-radius:12px;padding:18px 20px">
+        <div style="font-size:12px;font-weight:700;color:var(--purple);margin-bottom:14px">📊 광고 의존형 패턴 — 데이터 근거</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.9;word-break:keep-all">
+          <div style="margin-bottom:8px"><b style="color:var(--accent2)">울산 지점</b> — 2024.01 검색지수 228 (전국 최고) → 2025년 평균 89 (-29%)<br>
+          <span style="color:var(--text3)">개원 집중 광고 종료 후 자연 유입 없어 급락. 콘텐츠가 있었다면 이 수치를 방어했을 것.</span></div>
+          <div style="margin-bottom:8px"><b style="color:var(--accent2)">전국 추세</b> — 2024 대비 2025년 하락 지점 62%<br>
+          <span style="color:var(--text3)">콘텐츠 기반이라면 시간이 지날수록 상승해야 하지만, 광고 의존형이면 예산 줄 때마다 하락.</span></div>
+          <div><b style="color:var(--green)">반례: 분당 +611%, 범계 +46%</b><br>
+          <span style="color:var(--text3)">해당 지점이 광고를 강화했거나, 해당 지역 내 수요 발굴이 된 케이스. 콘텐츠 여부 미확인.</span></div>
+        </div>
+      </div>
+
+      <!-- 쁨글로벌 분석 -->
+      <div style="background:var(--surface2);border-radius:12px;padding:18px 20px">
+        <div style="font-size:12px;font-weight:700;color:var(--cyan);margin-bottom:14px">🌍 쁨글로벌의원 — 외국인 피벗 전략</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.9;word-break:keep-all">
+          <div style="background:var(--surface3);border-radius:6px;padding:10px;margin-bottom:8px">
+            <b style="color:var(--cyan)">지점:</b> 강남(신논현) · 명동 · 홍대 · 제주<br>
+            <b style="color:var(--cyan)">전략:</b> K-뷰티 외국인 관광객 타겟<br>
+            <b style="color:var(--cyan)">별도 사이트:</b> global.ppeum.com (다국어)
+          </div>
+          <div style="background:rgba(6,214,160,0.08);border-radius:6px;padding:10px;margin-bottom:8px">
+            <b style="color:var(--green)">긍정적:</b> 2025년 명동 외국인 매출 전년 대비 +70%, 홍대도 +48% 급증 → 외국인 의료관광 수요 수혜 가능
+          </div>
+          <div style="background:rgba(255,107,107,0.08);border-radius:6px;padding:10px">
+            <b style="color:var(--accent2)">우려:</b> 내국인 브랜드(예쁨주의쁨)는 약화되는데 외국인 브랜드(쁨글로벌)만 키우는 전략 → 내국인 시장 점유율 공백 발생
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 강남점 분석 -->
+    <div style="background:var(--surface2);border-radius:12px;padding:18px 22px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:14px">📍 강남점(신논현) 심층 분석</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+        <div style="background:var(--surface3);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:3px">DataLab 검색지수</div>
+          <div style="font-size:20px;font-weight:700;color:var(--accent)">74.4</div>
+          <div style="font-size:9px;color:var(--text3)">건대(51.8)보다 +44%</div>
+        </div>
+        <div style="background:var(--surface3);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:3px">전국 기준 위치</div>
+          <div style="font-size:20px;font-weight:700;color:var(--yellow)">중상위</div>
+          <div style="font-size:9px;color:var(--text3)">대전·천안·울산·안산·노원 다음</div>
+        </div>
+        <div style="background:var(--surface3);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:3px">내국인 + 외국인</div>
+          <div style="font-size:20px;font-weight:700;color:var(--cyan)">이중 타겟</div>
+          <div style="font-size:9px;color:var(--text3)">쁨글로벌 채널 병행</div>
+        </div>
+        <div style="background:rgba(61,214,140,0.1);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:3px">입지 우위</div>
+          <div style="font-size:20px;font-weight:700;color:var(--green)">최강</div>
+          <div style="font-size:9px;color:var(--green)">강남 메인 상권 + 외국인 유입</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:11px;color:var(--text2);line-height:1.8">
+        <div style="background:var(--surface3);border-radius:6px;padding:12px">
+          <b style="color:var(--accent)">검색량 안정성</b><br>
+          강남점 검색지수는 배치 기준 74.4로 전국 최상위권. 하락 없이 안정적 유지. 강남 상권 특성상 유동인구 + 외국인 + 내국인 수요 복합적으로 받는 구조.
+        </div>
+        <div style="background:var(--surface3);border-radius:6px;padding:12px">
+          <b style="color:var(--yellow)">쁨글로벌 시너지</b><br>
+          내국인 "예쁨주의쁨 강남" 검색 + 외국인 "PPEUM Global" 검색이 동일 지점으로 유입. 두 채널에서 동시 노출되는 유일한 지점. 외국인 의료관광 증가 트렌드 직접 수혜.
+        </div>
+        <div style="background:var(--surface3);border-radius:6px;padding:12px">
+          <b style="color:var(--accent2)">건대 대비 격차</b><br>
+          강남(74.4) vs 건대(51.8) = <b>+44% 차이</b>. 입지·브랜드 인지도 모두 강남이 우위. 건대가 경쟁자 7개라는 구조적 불리함을 반영. 단, 건대는 서울 지점 중 두 번째로 높음.
+        </div>
+      </div>
+    </div>
+
+    <!-- 전략 제언 -->
+    <div style="background:linear-gradient(135deg,rgba(61,214,140,0.07),rgba(79,143,255,0.05));border:1px solid rgba(61,214,140,0.2);border-radius:12px;padding:20px 24px">
+      <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:12px">💡 데이터가 가리키는 방향</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:11px;color:var(--text2);line-height:1.9;word-break:keep-all">
+        <div>
+          <b style="color:var(--green)">① 콘텐츠 마케팅 전환 (톤즈 벤치마킹)</b><br>
+          톤즈가 증명: 콘텐츠 = 광고보다 장기적으로 저비용·고효율. 시술 과정, 의사 일상, 후기 릴스 → 알고리즘 자연 노출. 현재 인스타 팔로워 13,000명 → 콘텐츠 전략 바꾸면 10만 이상 가능.<br><br>
+          <b style="color:var(--accent)">② 본사 통합 채널 구축 필요</b><br>
+          지점별 분산 광고 → 본사 유튜브/틱톡 공동 채널로 규모의 경제. 지점들이 광고비 절감하면서 본사 콘텐츠 공유 활용.
+        </div>
+        <div>
+          <b style="color:var(--cyan)">③ 쁨글로벌 → 내국인 브랜드 연계</b><br>
+          외국인 수요 수혜는 긍정적이나, 내국인 시장을 동시에 방어하지 않으면 경쟁사(톤즈, 데이뷰 등)에 점유율 뺏김. 강남점이 내·외국인 이중 타겟으로 성공 모델이 될 수 있음.<br><br>
+          <b style="color:var(--yellow)">④ 봄 시즌 선제 콘텐츠 배포</b><br>
+          전국 모든 지점이 봄(3~5월)에 검색량 급등 → 2~3월에 미리 콘텐츠 배포하면 수요 최상단에서 잡음. 현재는 광고를 봄에 집행하는데, 콘텐츠면 비수기에 쌓아서 봄에 터짐.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tab-sources" class="section">
+  <div class="source-panel">
+    <div class="sec-title" style="margin-bottom:0">데이터 소스 및 확인 방법</div>
+    <div class="source-grid">
+      <div class="source-item">
+        <div class="source-item-header"><div class="source-avail avail-yes"></div><div class="source-name">심평원 병원정보</div></div>
+        <div class="source-desc">의사 수, 전문의 수, 개설일, 진료과목. 무료 공개.</div>
+        <div class="source-url">hira.or.kr → 병원·약국 찾기</div>
+      </div>
+      <div class="source-item">
+        <div class="source-item-header"><div class="source-avail avail-yes"></div><div class="source-name">네이버 플레이스</div></div>
+        <div class="source-desc">별점, 리뷰수 수동 확인. API 없음, 직접 조회.</div>
+        <div class="source-url">map.naver.com → 병원명 검색</div>
+      </div>
+      <div class="source-item">
+        <div class="source-item-header"><div class="source-avail avail-yes"></div><div class="source-name">구글맵</div></div>
+        <div class="source-desc">별점, 리뷰수, 리뷰 언어 필터로 외국인 비율 추정.</div>
+        <div class="source-url">maps.google.com → 병원명 검색 → 리뷰 탭</div>
+      </div>
+      <div class="source-item">
+        <div class="source-item-header"><div class="source-avail avail-yes"></div><div class="source-name">메타 광고 라이브러리</div></div>
+        <div class="source-desc">인스타/페이스북 광고 집행 여부, 광고 소재 확인. 무료 공개.</div>
+        <div class="source-url">facebook.com/ads/library → 병원명 검색</div>
+      </div>
+      <div class="source-item">
+        <div class="source-item-header"><div class="source-avail avail-yes"></div><div class="source-name">인스타그램</div></div>
+        <div class="source-desc">팔로워 수, 게시물 수, 릴스·스토리 운영 여부 직접 확인.</div>
+        <div class="source-url">instagram.com → 병원 계정 검색</div>
+      </div>
+      <div class="source-item">
+        <div class="source-item-header"><div class="source-avail avail-yes"></div><div class="source-name">메디스태프 / 예스의사</div></div>
+        <div class="source-desc">페이닥터 구인 여부. 병원명 또는 지역으로 구인공고 검색.</div>
+        <div class="source-url">medistaff.co.kr / yesdoc.co.kr</div>
+      </div>
+      <div class="source-item">
+        <div class="source-item-header"><div class="source-avail avail-partial"></div><div class="source-name">각 병원 홈페이지</div></div>
+        <div class="source-desc">이벤트, 시술 메뉴, 가격 직접 수집. 주기적 모니터링 필요.</div>
+        <div class="source-url">각 병원 홈페이지 직접 방문</div>
+      </div>
+      <div class="source-item">
+        <div class="source-item-header"><div class="source-avail avail-no"></div><div class="source-name">개별 병원 매출</div></div>
+        <div class="source-desc">비급여 중심 피부과 특성상 실매출 확인 불가.</div>
+        <div class="source-url">접근 불가 — 이 대시보드에서 제외</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+// ─── 데이터 (확인된 값만) ───
+// hiring: true/false/null (null = 미확인, 구인사이트 직접 확인 필요)
+// naver_star: null = 네이버 플레이스에서 별점 미표시 또는 미확인
+// intl_*: 구글 리뷰 직접 언어 필터로 확인한 값. null = 미확인
+const H = [
+  {
+    name:"건대예쁨주의쁨의원", mine:true,
+    naver_star:4.50, naver_review:2867,       // 네이버 플레이스 직접
+    google_star:4.0, google_review:25,        // 구글맵 직접
+    insta:3200,                               // 인스타 직접
+    insta_posts_monthly:8,                    // 인스타 직접 (최근 게시물 기준)
+    reels:false, story:true,                  // 인스타 직접
+    doctors:1, specialist:1, general:0, open_year:2018, // 심평원
+    hiring:null,                              // 미확인 — 메디스태프 확인 필요
+    channels:["naver","insta"],               // 직접 확인
+    meta_ads:false,                           // 메타 광고 라이브러리 확인
+    naver_sa:true,                            // 네이버 검색 확인
+    kakao_ads:false,                          // 직접 확인
+    kakao_subs:null,                          // 미확인
+    themes:['리프팅','스킨케어','이벤트'],    // 인스타 직접 확인
+    memo:"",
+    // 외국인 리뷰 - 구글 리뷰 직접 언어 분석 (25개 리뷰 기준)
+    intl_total_reviews:25,
+    intl_kr:null, intl_cn:null, intl_jp:null, intl_en:null, intl_other:null, // 미확인
+    intl_lang_support:"기초 영어",            // 직접 확인
+    intl_event:false,                         // 홈페이지 확인
+    // 트렌드 추적 기록 (날짜, 네이버리뷰, 인스타, 구글리뷰)
+    records:[{d:"26.03.05",nr:2825,ig:3200,gr:25},{d:"26.04.02",nr:2867,ig:3200,gr:25}],
+    events:[
+      {name:"균일가 슈퍼세일",price:"문의",original:"",period:"진행중",tag:"세일"},
+      {name:"볼뉴머 설맞이 역대급 네고",price:"문의",original:"",period:"진행중",tag:"리프팅"},
+      {name:"스킨부스터 이벤트",price:"문의",original:"",period:"진행중",tag:"스킨부스터"},
+      {name:"튠페이스 프로모션",price:"문의",original:"",period:"진행중",tag:"리프팅"},
+      {name:"건국대학교 할인 이벤트",price:"문의",original:"",period:"상시",tag:"특별할인"},
+    ],
+    procedures:["톡신/필러/윤곽주사","울쎄라피/써마지FLX/실리프팅","레이저(피코토닝/포텐자)","스킨부스터(쥬베룩/리쥬란)","제모","바디/다이어트"]
+  },
+  {
+    name:"톡필", mine:false,
+    naver_star:4.65, naver_review:2830,
+    google_star:4.8, google_review:24,
+    insta:8900,
+    insta_posts_monthly:20, reels:true, story:true,
+    doctors:3, specialist:2, general:1, open_year:2019,
+    hiring:true,                              // 메디스태프 구인공고 확인
+    channels:["naver","insta","youtube"],
+    meta_ads:true, naver_sa:true, kakao_ads:true,
+    kakao_subs:null,
+    themes:['스킨부스팅','리프팅','시술후기','이벤트'],
+    memo:"위챗 계정 운영 확인. 페이닥터 2명 구인공고 (메디스태프).",
+    intl_total_reviews:24,
+    intl_kr:null, intl_cn:null, intl_jp:null, intl_en:null, intl_other:null,
+    intl_lang_support:"영어·중국어",
+    intl_event:true,
+    records:[{d:"26.03.05",nr:2837,ig:8900,gr:24},{d:"26.04.02",nr:2830,ig:8900,gr:24}],
+    events:[
+      {name:"아쿠아필(3단계)+LDM+모델링",price:"99,000원",original:"150,000원",period:"2026.04",tag:"스킨케어"},
+      {name:"울쎄라피프라임300샷+온다3만줄+톡신",price:"1,290,000원",original:"1,900,000원",period:"2026.04",tag:"리프팅패키지"},
+      {name:"리쥬하이4cc+쥬베룩2cc+LDM",price:"419,000원",original:"800,000원",period:"2026.04",tag:"스킨부스터"},
+      {name:"리투오라이트1vial+온다6만줄",price:"660,000원",original:"1,290,000원",period:"2026.04",tag:"리프팅"},
+      {name:"벚꽃 전에 스킨 부스팅",price:"29,000원~",original:"50,000원",period:"2026.04",tag:"스킨부스터"},
+      {name:"벚꽃 전에 리프팅",price:"89,000원~",original:"129,000원",period:"2026.04",tag:"리프팅"},
+    ],
+    procedures:["스킨부스팅(리쥬란/쥬베룩/리투오)","리프팅(울쎄라피/써마지/온다)","필러(볼륨)","톡신"]
+  },
+  {
+    name:"닥터쁘띠", mine:false,
+    naver_star:null, naver_review:1099,
+    google_star:5.0, google_review:2,
+    insta:5600,
+    insta_posts_monthly:15, reels:true, story:true,
+    doctors:null, specialist:null, general:null, open_year:null, // 심평원 미등록 확인 필요
+    hiring:null,
+    channels:["naver","insta"],
+    meta_ads:false, naver_sa:true, kakao_ads:false,
+    kakao_subs:null,
+    themes:['외국인','필러','이벤트'],
+    memo:"심평원 광진구 미등록 — 인접 구 등록 여부 직접 확인 필요.",
+    intl_total_reviews:2,
+    intl_kr:null, intl_cn:null, intl_jp:null, intl_en:null, intl_other:null,
+    intl_lang_support:"영어·일본어",
+    intl_event:true,
+    records:[{d:"26.03.05",nr:1115,ig:5600,gr:2},{d:"26.04.02",nr:1099,ig:5600,gr:2}],
+    events:[
+      {name:"첫방문 슈링크",price:"문의",original:"",period:"상시",tag:"첫방문"},
+      {name:"첫방문 온다",price:"문의",original:"",period:"상시",tag:"첫방문"},
+    ],
+    procedures:["보톡스/필러","지방분해","스킨부스터(9종)","리프팅(9종)","레이저","제모","바디케어/수액"]
+  },
+  {
+    name:"닥터에버스", mine:false,
+    naver_star:null, naver_review:905,
+    google_star:4.9, google_review:25,
+    insta:12000,
+    insta_posts_monthly:28, reels:true, story:true,
+    doctors:1, specialist:0, general:1, open_year:2025,
+    hiring:false,                             // 메디스태프 확인 — 구인공고 없음
+    channels:["naver","insta","youtube","google"],
+    meta_ads:true, naver_sa:true, kakao_ads:true,
+    kakao_subs:null,
+    themes:['외국인특화','톡신','리프팅','Before&After','이벤트'],
+    memo:"외국인 3개국어(영·중·일) 안내. 전 채널 광고 집행 확인.",
+    intl_total_reviews:25,
+    intl_kr:null, intl_cn:null, intl_jp:null, intl_en:null, intl_other:null,
+    intl_lang_support:"영어·중국어·일본어",
+    intl_event:true,
+    records:[{d:"26.03.05",nr:804,ig:12000,gr:25},{d:"26.04.02",nr:905,ig:12000,gr:25}],
+    events:[
+      {name:"주름보톡스",price:"2,900원~",original:"",period:"진행중",tag:"톡신"},
+      {name:"인모드",price:"문의",original:"",period:"진행중",tag:"리프팅"},
+      {name:"아쿠아필",price:"문의",original:"",period:"진행중",tag:"스킨케어"},
+      {name:"레이저토닝",price:"문의",original:"",period:"진행중",tag:"레이저"},
+    ],
+    procedures:["톡신/보톡스","리프팅(인모드)","스킨케어(아쿠아필)","레이저토닝"]
+  },
+  {
+    name:"데이뷰", mine:false,
+    naver_star:null, naver_review:4922,
+    google_star:4.9, google_review:40,
+    insta:4200,
+    insta_posts_monthly:6, reels:false, story:false,
+    doctors:1, specialist:0, general:1, open_year:2023,
+    hiring:false,
+    channels:["naver","meta"],
+    meta_ads:true, naver_sa:true, kakao_ads:false,
+    kakao_subs:null,
+    themes:['이벤트','스킨케어','일본타겟'],
+    memo:"메타 광고 집행 확인 — 일본 타겟 포함.",
+    intl_total_reviews:40,
+    intl_kr:null, intl_cn:null, intl_jp:null, intl_en:null, intl_other:null,
+    intl_lang_support:"기초 영어·일본어",
+    intl_event:true,
+    records:[{d:"26.03.05",nr:4778,ig:4200,gr:40},{d:"26.04.02",nr:4922,ig:4200,gr:40}],
+    events:[
+      {name:"첫방문 이벤트",price:"문의",original:"",period:"상시",tag:"첫방문"},
+      {name:"턱 톡신 50유닛",price:"5,000원",original:"9,900원",period:"진행중",tag:"톡신"},
+      {name:"인모드 FX 5분",price:"29,000원",original:"49,000원",period:"진행중",tag:"리프팅"},
+      {name:"울세라피 프라임 100샷",price:"290,000원",original:"550,000원",period:"진행중",tag:"리프팅"},
+    ],
+    procedures:["컨투어링(톡신/필러/윤곽/실리프팅)","리프팅(엠페이스/써마지/온다/울쎄라)","피부개선(스킨부스터/포텐자/레이저)","제모/바디슬리밍","스페셜(노바스템/눈밑개선)"]
+  },
+  {
+    name:"톤즈", mine:false,
+    naver_star:null, naver_review:1790,
+    google_star:5.0, google_review:41,
+    insta:7800,
+    insta_posts_monthly:22, reels:true, story:true,
+    doctors:2, specialist:0, general:2, open_year:2025,
+    hiring:true,                              // 메디스태프 구인공고 확인
+    channels:["insta","tiktok"],
+    meta_ads:false, naver_sa:false, kakao_ads:false,
+    kakao_subs:null,
+    themes:['MZ타겟','틱톡','레이저','이벤트'],
+    memo:"틱톡 채널 운영 확인. 네이버 SA 미집행.",
+    intl_total_reviews:41,
+    intl_kr:null, intl_cn:null, intl_jp:null, intl_en:null, intl_other:null,
+    intl_lang_support:"영어",
+    intl_event:true,
+    records:[{d:"26.03.05",nr:1652,ig:7800,gr:41},{d:"26.04.02",nr:1790,ig:7800,gr:41}],
+    events:[
+      {name:"3월 화사하게 톤즈 UP!",price:"문의",original:"",period:"2026.04",tag:"이달의이벤트"},
+      {name:"득템 머취 데이",price:"문의",original:"",period:"2026.04",tag:"특별"},
+      {name:"평일 타임 어택 (11~16시)",price:"문의",original:"",period:"상시",tag:"시간한정"},
+      {name:"젠틀맥스 프로 플러스",price:"문의",original:"",period:"상시",tag:"레이저제모"},
+      {name:"첫방문 이벤트",price:"문의",original:"",period:"상시",tag:"첫방문"},
+    ],
+    procedures:["점/문신제거","보톡스/윤곽주사","리프팅(온다/울쎄라)","필러/실리프팅","레이저/젠틀맥스제모","스킨케어","스킨부스터","다이어트/수액","닥터톤즈 화장품"]
+  },
+  {
+    name:"유앤아이", mine:false,
+    naver_star:4.60, naver_review:1491,
+    google_star:4.7, google_review:41,
+    insta:6100,
+    insta_posts_monthly:18, reels:true, story:true,
+    doctors:14, specialist:2, general:12, open_year:2022,
+    hiring:true,                              // 메디스태프 구인공고 확인
+    channels:["naver","insta","kakao","meta"],
+    meta_ads:true, naver_sa:true, kakao_ads:true,
+    kakao_subs:null,
+    themes:['일본어','보톡스','필러','리프팅','카카오'],
+    memo:"카카오 채널 활발. 일본어 상담 가능 직접 확인. 메타 광고 집행 확인(광고라이브러리).",
+    intl_total_reviews:41,
+    intl_kr:null, intl_cn:null, intl_jp:null, intl_en:null, intl_other:null,
+    intl_lang_support:"영어·일본어",
+    intl_event:true,
+    records:[{d:"26.03.05",nr:1505,ig:6100,gr:41},{d:"26.04.02",nr:1491,ig:6100,gr:41}],
+    events:[
+      {name:"입고 이벤트",price:"문의",original:"",period:"2026.04",tag:"신규"},
+      {name:"이달의 단독이벤트",price:"문의",original:"",period:"2026.04",tag:"단독"},
+      {name:"첫방문 체험가",price:"문의",original:"",period:"상시",tag:"첫방문"},
+      {name:"화수목 이벤트",price:"문의",original:"",period:"상시",tag:"요일한정"},
+      {name:"레이저리프팅 이벤트",price:"문의",original:"",period:"2026.04",tag:"리프팅"},
+      {name:"실리프팅 이벤트",price:"문의",original:"",period:"2026.04",tag:"리프팅"},
+    ],
+    procedures:["피부(점/사마귀/제모)","색소(토닝/피코플러스/기미)","여드름/모공(포텐자)","스킨케어","피부주사(리쥬란/물광)","쁘띠(필러/보톡스)","리프팅(울쎄라피/인모드/슈링크)","비만(아쎄라/HPL)"]
+  },
+];
+
+const STORAGE_KEY = 'hospital_v3_clean';
+(function load(){
+  try{
+    const s=localStorage.getItem(STORAGE_KEY);
+    if(!s) return;
+    JSON.parse(s).forEach((d,i)=>{if(H[i]&&H[i].name===d.name)Object.assign(H[i],d);});
+  }catch(e){}
+})();
+
+const CH_MAP={naver:{label:"네이버",cls:"ch-naver"},insta:{label:"인스타",cls:"ch-insta"},youtube:{label:"유튜브",cls:"ch-youtube"},meta:{label:"메타",cls:"ch-meta"},tiktok:{label:"틱톡",cls:"ch-tiktok"},google:{label:"구글",cls:"ch-google"},kakao:{label:"카카오",cls:"ch-kakao"}};
+const CH_ICON={naver:'N',insta:'📸',youtube:'▶',meta:'f',tiktok:'♪',google:'G',kakao:'K'};
+const ALL_CH=['naver','insta','youtube','meta','tiktok','google','kakao'];
+
+document.getElementById('today-date').textContent=new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit'});
+
+function tab(name,el){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  el.classList.add('active');
+  if(name==='charts') initCharts();
+  if(name==='trend') initTrend();
+  if(name==='foreigner') initForeigner();
+  if(name==='franchise') initFranchise();
+  if(name==='revenue') updateRevenue();
+}
+
+function val(v,unit=''){
+  if(v===null||v===undefined) return `<span class="unverified">? 미확인</span>`;
+  return `<span style="font-family:var(--mono)">${typeof v==='number'?v.toLocaleString():v}${unit}</span>`;
+}
+function boolBadge(v){
+  if(v===null) return `<span class="unverified">? 미확인</span>`;
+  return v?`<span class="badge badge-red">구인중</span>`:`<span class="badge badge-gray">없음</span>`;
+}
+
+// ─── 종합 현황 테이블 ───
+const tbody=document.getElementById('main-tbody');
+H.forEach(h=>{
+  const tr=document.createElement('tr');
+  if(h.mine) tr.className='mine';
+  const chTags=h.channels.map(c=>`<span class="ch-tag ${CH_MAP[c]?.cls||''}">${CH_MAP[c]?.label||c}</span>`).join('');
+  tr.innerHTML=`
+    <td class="name-cell">
+      <div class="hname">${h.mine?'🏠 ':''}${h.name}</div>
+      <div class="hsub">개설 ${h.open_year??'?'}년</div>
+    </td>
+    <td>${val(h.doctors,'명')}</td>
+    <td>
+      <div style="font-family:var(--mono)">${h.naver_star??'—'}</div>
+      <div style="font-size:10px;color:var(--text3)">${h.naver_review!==null?h.naver_review.toLocaleString()+'개':'—'}</div>
+    </td>
+    <td>
+      <div style="font-family:var(--mono)">${h.google_star}</div>
+      <div style="font-size:10px;color:var(--text3)">${h.google_review}개</div>
+    </td>
+    <td>${val(h.insta)}</td>
+    <td><span class="badge ${h.meta_ads?'badge-blue':'badge-gray'}">${h.meta_ads?'집행중':'미집행'}</span></td>
+    <td><span class="badge ${h.naver_sa?'badge-green':'badge-gray'}">${h.naver_sa?'집행중':'미집행'}</span></td>
+    <td><div class="ch-list">${chTags}</div></td>
+    <td>${boolBadge(h.hiring)}</td>
+    <td style="font-size:11px;text-align:left;max-width:160px">${(h.events||[]).slice(0,2).map(e=>`<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:155px">${e.name}</div>`).join('')}</td>
+  `;
+  tbody.appendChild(tr);
+});
+
+// ─── 의사 카드 ───
+const docWrap=document.getElementById('doctor-cards');
+H.forEach(h=>{
+  const d=document.createElement('div');
+  d.className='doctor-card'+(h.mine?' mine':'');
+  const persons=Array(Math.min(h.specialist||0,5)).fill('<div class="dc-person"></div>').join('')+Array(Math.min(h.general||0,3)).fill('<div class="dc-person pay"></div>').join('');
+  d.innerHTML=`
+    <div class="dc-name">${h.mine?'🏠 ':''}${h.name}</div>
+    <div class="dc-main">
+      <div><div class="dc-count">${h.doctors??'?'}</div><div class="dc-count-label">명</div></div>
+      <div class="dc-visual">${persons}</div>
+    </div>
+    <div class="dc-details">
+      <div class="dc-detail"><div class="dc-detail-label">전문의</div><div class="dc-detail-val" style="color:var(--accent)">${h.specialist??'?'}명</div></div>
+      <div class="dc-detail"><div class="dc-detail-label">일반의</div><div class="dc-detail-val" style="color:var(--yellow)">${h.general??'?'}명</div></div>
+      <div class="dc-detail"><div class="dc-detail-label">개설연도</div><div class="dc-detail-val">${h.open_year??'미확인'}</div></div>
+      <div class="dc-detail"><div class="dc-detail-label">페이닥터</div><div class="dc-detail-val" style="font-size:11px">${h.hiring===null?'<span style="color:var(--text3)">미확인</span>':h.hiring?'<span style="color:var(--accent2)">구인중</span>':'없음'}</div></div>
+    </div>
+    ${h.memo?`<div style="font-size:10px;color:var(--yellow);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">⚠️ ${h.memo}</div>`:''}
+  `;
+  docWrap.appendChild(d);
+});
+
+// ─── 외국인 리뷰 ───
+const intlWrap=document.getElementById('intl-cards');
+H.forEach(h=>{
+  const d=document.createElement('div');
+  d.className='intl-card'+(h.mine?' mine':'');
+  const confirmed=h.intl_kr!==null;
+  const langRows = confirmed ? `
+    <div class="lang-row"><div class="lang-label">🇰🇷 한국어</div><div class="lang-bar"><div class="lang-fill" style="width:${h.intl_kr}%;background:var(--accent)"></div></div><div class="lang-pct">${h.intl_kr}%</div></div>
+    <div class="lang-row"><div class="lang-label">🇨🇳 중국어</div><div class="lang-bar"><div class="lang-fill" style="width:${h.intl_cn}%;background:var(--accent2)"></div></div><div class="lang-pct">${h.intl_cn}%</div></div>
+    <div class="lang-row"><div class="lang-label">🇯🇵 일본어</div><div class="lang-bar"><div class="lang-fill" style="width:${h.intl_jp}%;background:var(--yellow)"></div></div><div class="lang-pct">${h.intl_jp}%</div></div>
+    <div class="lang-row"><div class="lang-label">🇺🇸 영어</div><div class="lang-bar"><div class="lang-fill" style="width:${h.intl_en}%;background:var(--green)"></div></div><div class="lang-pct">${h.intl_en}%</div></div>
+    <div class="lang-row"><div class="lang-label">기타</div><div class="lang-bar"><div class="lang-fill" style="width:${h.intl_other}%;background:var(--text3)"></div></div><div class="lang-pct">${h.intl_other}%</div></div>
+  ` : `<div style="padding:16px 0;text-align:center;font-size:11px;color:var(--text3)">
+    구글맵 → 리뷰 탭 → 언어 필터로 직접 확인 후 입력하세요<br>
+    <span style="font-family:var(--mono);font-size:10px">총 ${h.intl_total_reviews}개 리뷰</span>
+  </div>`;
+  d.innerHTML=`
+    <div class="intl-card-name">${h.mine?'🏠 ':''}${h.name}
+      ${confirmed?`<span class="badge badge-green" style="margin-left:auto">분석완료</span>`:`<span class="unverified" style="margin-left:auto">미확인</span>`}
+    </div>
+    ${langRows}
+    <div class="intl-meta">
+      <div class="intl-meta-item"><div class="intl-meta-label">외국어 상담</div><div class="intl-meta-val" style="font-size:11px">${h.intl_lang_support}</div></div>
+      <div class="intl-meta-item"><div class="intl-meta-label">외국인 이벤트</div><div class="intl-meta-val" style="color:${h.intl_event?'var(--green)':'var(--text3)'};">${h.intl_event?'✅ 있음':'없음'}</div></div>
+    </div>
+    <div style="font-size:9px;color:var(--text3);margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">구글 리뷰 ${h.intl_total_reviews}개 기준 · 직접 분석 필요</div>
+  `;
+  intlWrap.appendChild(d);
+});
+
+// ─── 마케팅 카드 ───
+const mktWrap=document.getElementById('mkt-cards');
+H.forEach(h=>{
+  const d=document.createElement('div');
+  d.className='mkt-card'+(h.mine?' mine':'');
+  const chItems=ALL_CH.map(c=>{
+    const active=h.channels.includes(c);
+    return `<div class="ch-item${active?' active':''}"><div class="ch-icon">${CH_ICON[c]}</div><div class="ch-name">${CH_MAP[c]?.label||c}</div><div class="ch-status">${active?'✅':'—'}</div></div>`;
+  }).join('');
+  const themes=(h.themes||[]).map(t=>`<span class="theme-tag">${t}</span>`).join('');
+  d.innerHTML=`
+    <div class="mkt-card-header">
+      <div>
+        <div class="mkt-name">${h.mine?'🏠 ':''}${h.name}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">채널 ${h.channels.length}개 운영</div>
+      </div>
+    </div>
+    <div class="channel-grid">${chItems}</div>
+    <div class="ad-grid">
+      <div class="ad-item"><div class="ad-item-label">메타 광고</div><div class="ad-item-val" style="color:${h.meta_ads?'var(--accent)':'var(--text3)'}">${h.meta_ads?'🔵 집행중':'미집행'}</div></div>
+      <div class="ad-item"><div class="ad-item-label">네이버 SA</div><div class="ad-item-val" style="color:${h.naver_sa?'var(--green)':'var(--text3)'}">${h.naver_sa?'✅ 집행중':'미집행'}</div></div>
+      <div class="ad-item"><div class="ad-item-label">카카오 광고</div><div class="ad-item-val" style="color:${h.kakao_ads?'var(--yellow)':'var(--text3)'}">${h.kakao_ads?'🟡 집행중':'미집행'}</div></div>
+      <div class="ad-item"><div class="ad-item-label">인스타 릴스</div><div class="ad-item-val" style="color:${h.reels?'var(--green)':'var(--text3)'}">${h.reels?'✅ 활성':'—'}</div></div>
+    </div>
+    <div class="content-detail">
+      <div class="content-row"><span class="content-label">월 게시물</span><span style="font-family:var(--mono);font-weight:700">${h.insta_posts_monthly}개</span></div>
+      <div class="content-row"><span class="content-label">스토리</span><span style="color:${h.story?'var(--green)':'var(--text3)'}">${h.story?'활성':'—'}</span></div>
+      ${h.memo?`<div style="font-size:10px;color:var(--text2);border-top:1px solid var(--border);padding-top:6px;margin-top:2px">${h.memo}</div>`:''}
+      <div class="theme-tags">${themes}</div>
+    </div>
+  `;
+  mktWrap.appendChild(d);
+});
+
+// ─── 이벤트 비교 테이블 ───
+const evTbody=document.getElementById('event-compare-tbody');
+H.forEach(h=>{
+  const evs=h.events||[];
+  const priceShown=evs.filter(e=>e.price!=='문의'&&e.price!=='').length;
+  const hasFirst=evs.some(e=>e.tag==='첫방문');
+  const cats=[...new Set(evs.map(e=>e.tag))].slice(0,3).join(', ');
+  const discounts=evs.filter(e=>e.original).map(e=>{
+    const p=parseInt(e.price.replace(/[^0-9]/g,''));
+    const o=parseInt(e.original.replace(/[^0-9]/g,''));
+    if(p&&o&&o>p) return Math.round((1-p/o)*100);
+    return 0;
+  }).filter(v=>v>0);
+  const maxDiscount=discounts.length?Math.max(...discounts):null;
+  const tr=document.createElement('tr');
+  if(h.mine) tr.style.cssText='background:rgba(255,107,107,0.04)';
+  tr.innerHTML=`
+    <td style="text-align:left;font-weight:600;color:${h.mine?'var(--my-color)':'var(--text)'};border-left:${h.mine?'2px solid var(--my-color)':'none'}">${h.mine?'🏠 ':''}${h.name}</td>
+    <td><span class="badge badge-${evs.length>=5?'green':evs.length>=3?'yellow':'gray'}">${evs.length}개</span></td>
+    <td style="font-family:var(--mono)">${priceShown}/${evs.length}</td>
+    <td style="font-family:var(--mono);color:var(--accent2)">${maxDiscount!==null?maxDiscount+'%':'—'}</td>
+    <td>${hasFirst?'<span class="badge badge-green">있음</span>':'<span class="badge badge-gray">없음</span>'}</td>
+    <td style="font-size:11px;color:var(--text2)">${cats||'—'}</td>
+  `;
+  evTbody.appendChild(tr);
+});
+
+// ─── 이벤트 카드 ───
+const evWrap=document.getElementById('event-cards');
+H.forEach(h=>{
+  const evs=h.events||[];
+  const d=document.createElement('div');
+  d.className='event-card'+(h.mine?' mine':'');
+  const priceShown=evs.filter(e=>e.price!=='문의'&&e.price!=='').length;
+  const evItems=evs.map(e=>`
+    <div class="event-item">
+      <span class="event-tag">${e.tag}</span>
+      <span class="event-name-text">${e.name}</span>
+      <div class="event-price-wrap">
+        <div class="event-price">${e.price}</div>
+        ${e.original?`<div class="event-original">${e.original}</div>`:''}
+        <div class="event-period">${e.period}</div>
+      </div>
+    </div>`).join('')||`<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px">이벤트 정보 없음</div>`;
+  d.innerHTML=`
+    <div class="event-card-name">${h.mine?'🏠 ':''}${h.name}</div>
+    <div class="event-updated">📅 수집: 2026.04.02 · 홈페이지/네이버 플레이스</div>
+    <div class="event-stats-row">
+      <div class="event-stat-mini"><div class="event-stat-mini-val" style="color:var(--accent)">${evs.length}</div><div class="event-stat-mini-label">이벤트 수</div></div>
+      <div class="event-stat-mini"><div class="event-stat-mini-val" style="color:var(--green)">${priceShown}</div><div class="event-stat-mini-label">가격공개</div></div>
+      <div class="event-stat-mini"><div class="event-stat-mini-val" style="color:var(--text2);font-size:11px">${evs.filter(e=>e.period==='상시').length}</div><div class="event-stat-mini-label">상시진행</div></div>
+    </div>
+    <div class="event-list">${evItems}</div>
+    <div class="proc-section-title">주요 시술</div>
+    <div class="proc-chips">${(h.procedures||[]).map(p=>`<span class="proc-chip">${p}</span>`).join('')}</div>
+  `;
+  evWrap.appendChild(d);
+});
+
+// ─── 데이터 입력 ───
+const inputWrap=document.getElementById('input-cards');
+H.forEach((h,i)=>{
+  const d=document.createElement('div');
+  d.className='input-card'+(h.mine?' mine':'');
+  d.innerHTML=`
+    <h3>${h.mine?'🏠 ':''}${h.name}</h3>
+    <div class="form-row"><label>네이버 별점</label><input id="f${i}ns" type="number" step=".01" min="1" max="5" value="${h.naver_star??''}"></div>
+    <div class="form-row"><label>네이버 리뷰수</label><input id="f${i}nr" type="number" value="${h.naver_review??''}"></div>
+    <div class="form-row"><label>구글 별점</label><input id="f${i}gs" type="number" step=".1" value="${h.google_star??''}"></div>
+    <div class="form-row"><label>구글 리뷰수</label><input id="f${i}gr" type="number" value="${h.google_review??''}"></div>
+    <div class="form-row"><label>인스타 팔로워</label><input id="f${i}ig" type="number" value="${h.insta??''}"></div>
+    <div class="form-row"><label>페이닥터 구인 (메디스태프 확인)</label>
+      <select id="f${i}hr">
+        <option value="null" ${h.hiring===null?'selected':''}>미확인</option>
+        <option value="false" ${h.hiring===false?'selected':''}>없음</option>
+        <option value="true" ${h.hiring===true?'selected':''}>구인중</option>
+      </select>
+    </div>
+    <div class="form-row"><label>메타 광고 (광고 라이브러리 확인)</label>
+      <select id="f${i}ma">
+        <option value="false" ${!h.meta_ads?'selected':''}>미집행</option>
+        <option value="true" ${h.meta_ads?'selected':''}>집행중</option>
+      </select>
+    </div>
+    <div class="form-row"><label>구글 리뷰 한국어 % (직접 확인)</label><input id="f${i}ik" type="number" placeholder="미확인" value="${h.intl_kr??''}"></div>
+    <div class="form-row"><label>구글 리뷰 중국어 %</label><input id="f${i}ic" type="number" placeholder="미확인" value="${h.intl_cn??''}"></div>
+    <div class="form-row"><label>구글 리뷰 일본어 %</label><input id="f${i}ij" type="number" placeholder="미확인" value="${h.intl_jp??''}"></div>
+    <div class="form-row"><label>구글 리뷰 영어 %</label><input id="f${i}ie" type="number" placeholder="미확인" value="${h.intl_en??''}"></div>
+    <div class="form-row"><label>메모</label><textarea id="f${i}mo" rows="2">${h.memo||''}</textarea></div>
+    <button class="save-btn" onclick="save(${i})">💾 저장</button>
+  `;
+  inputWrap.appendChild(d);
+});
+
+function save(i){
+  const h=H[i];
+  const ns=document.getElementById(`f${i}ns`).value; if(ns) h.naver_star=parseFloat(ns);
+  const nr=document.getElementById(`f${i}nr`).value; if(nr) h.naver_review=parseInt(nr);
+  const gs=document.getElementById(`f${i}gs`).value; if(gs) h.google_star=parseFloat(gs);
+  const gr=document.getElementById(`f${i}gr`).value; if(gr) h.google_review=parseInt(gr);
+  const ig=document.getElementById(`f${i}ig`).value; if(ig) h.insta=parseInt(ig);
+  const hrv=document.getElementById(`f${i}hr`).value; h.hiring=hrv==='null'?null:hrv==='true';
+  h.meta_ads=document.getElementById(`f${i}ma`).value==='true';
+  const ik=document.getElementById(`f${i}ik`).value; if(ik) h.intl_kr=parseInt(ik);
+  const ic=document.getElementById(`f${i}ic`).value; if(ic) h.intl_cn=parseInt(ic);
+  const ij=document.getElementById(`f${i}ij`).value; if(ij) h.intl_jp=parseInt(ij);
+  const ie=document.getElementById(`f${i}ie`).value; if(ie) h.intl_en=parseInt(ie);
+  h.memo=document.getElementById(`f${i}mo`).value;
+  // 트렌드 기록 갱신 (오늘 날짜 기준)
+  const today=new Date().toLocaleDateString('ko-KR',{year:'2-digit',month:'2-digit',day:'2-digit'}).replace(/\. /g,'.').replace('.','');
+  const last=h.records[h.records.length-1];
+  if(!last||last.d!==today) h.records.push({d:today,nr:h.naver_review,ig:h.insta,gr:h.google_review});
+  else Object.assign(last,{nr:h.naver_review,ig:h.insta,gr:h.google_review});
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(H));
+  alert(`✅ ${h.name} 저장 완료!`);
+}
+function resetAll(){
+  if(!confirm('⚠️ 모든 저장 데이터를 초기화합니다. 계속할까요?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+}
+
+// ─── 차트 ───
+const names=H.map(h=>h.name.replace('건대예쁨주의쁨의원','우리병원'));
+const myColors=H.map(h=>h.mine?'rgba(255,107,107,0.85)':'rgba(79,143,255,0.55)');
+const myBorders=H.map(h=>h.mine?'rgba(255,107,107,1)':'rgba(79,143,255,0.9)');
+const baseOpts={responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#5a6382',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#5a6382',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}}}};
+
+let chartsInited=false;
+function initCharts(){
+  if(chartsInited) return; chartsInited=true;
+  new Chart(document.getElementById('c-review'),{type:'bar',data:{labels:names,datasets:[{data:H.map(h=>h.naver_review),backgroundColor:myColors,borderColor:myBorders,borderWidth:2,borderRadius:4}]},options:baseOpts});
+  new Chart(document.getElementById('c-gstar'),{type:'bar',data:{labels:names,datasets:[{data:H.map(h=>h.google_star),backgroundColor:myColors,borderColor:myBorders,borderWidth:2,borderRadius:4}]},options:{...baseOpts,scales:{...baseOpts.scales,y:{...baseOpts.scales.y,min:4,max:5.1}}}});
+  new Chart(document.getElementById('c-greview'),{type:'bar',data:{labels:names,datasets:[{data:H.map(h=>h.google_review),backgroundColor:myColors,borderColor:myBorders,borderWidth:2,borderRadius:4}]},options:baseOpts});
+  new Chart(document.getElementById('c-insta'),{type:'bar',data:{labels:names,datasets:[{data:H.map(h=>h.insta),backgroundColor:myColors,borderColor:myBorders,borderWidth:2,borderRadius:4}]},options:baseOpts});
+  new Chart(document.getElementById('c-doctor'),{type:'bar',data:{labels:names,datasets:[{data:H.map(h=>h.doctors??0),backgroundColor:myColors,borderColor:myBorders,borderWidth:2,borderRadius:4}]},options:baseOpts});
+  new Chart(document.getElementById('c-mkt'),{type:'bar',data:{labels:names,datasets:[{data:H.map(h=>h.channels.length),backgroundColor:myColors,borderColor:myBorders,borderWidth:2,borderRadius:4}]},options:baseOpts});
+}
+
+// ─── 외국인 트래픽 탭 ───
+let fgInited = false;
+function initForeigner() {
+  if (fgInited) return; fgInited = true;
+
+  const T = (typeof TOURISM_DATA !== 'undefined' && TOURISM_DATA) ? TOURISM_DATA : null;
+
+  // 데이터 없으면 샘플 내장
+  const D = T || {
+    is_sample: true,
+    updated_at: "샘플 데이터",
+    period: "25.04 ~ 26.03",
+    month_labels: ["25.04","25.05","25.06","25.07","25.08","25.09","25.10","25.11","25.12","26.01","26.02","26.03"],
+    total_series: [565000,613000,647000,640000,625000,610000,605000,641000,650000,593000,586000,740000],
+    nation_series: {
+      "중국":     [145000,152000,148000,140000,145000,150000,158000,165000,170000,155000,160000,180000],
+      "일본":     [245000,255000,248000,230000,240000,260000,275000,290000,300000,250000,260000,280000],
+      "미국":     [85000,89000,86000,83000,85000,87000,90000,92000,100000,85000,88000,95000],
+      "동남아":   [198000,208000,200000,188000,195000,205000,210000,215000,230000,195000,200000,220000],
+      "기타":     [162000,169000,165000,159000,162000,168000,172000,175000,180000,165000,170000,185000],
+    },
+    district_names: ["광진구","성동구","마포구","중구","강남구","서초구","동대문구","종로구"],
+    district_2023:  [88000,72000,145000,420000,310000,185000,260000,380000],
+    district_2024:  [105000,89000,168000,480000,355000,210000,295000,430000],
+    gwangjin_labels:["25.04","25.05","25.06","25.07","25.08","25.09","25.10","25.11","25.12","26.01","26.02","26.03"],
+    gwangjin_values:[8500,9000,8800,8100,8300,8700,9000,9200,9500,8600,8900,9800],
+    latest_month:   "26.03",
+    latest_total:   740000,
+    latest_by_nation: {"중국":180000,"일본":280000,"미국":95000,"동남아":220000,"기타":185000},
+    gwangjin_latest: 9800,
+    gwangjin_prev:   8900,
+  };
+
+  // 공지 표시
+  if (D.is_sample) {
+    document.getElementById('fg-notice-sample').style.display = 'block';
+  } else {
+    document.getElementById('fg-notice-live').style.display = 'block';
+    document.getElementById('fg-updated').textContent = (D.period || D.updated_at);
+  }
+
+  // KPI 카드
+  const kpiWrap = document.getElementById('fg-kpis');
+  const gwChange = D.gwangjin_prev > 0 ? (((D.gwangjin_latest - D.gwangjin_prev) / D.gwangjin_prev) * 100).toFixed(1) : 0;
+  const latestNation = D.latest_by_nation;
+  const topNation = Object.entries(latestNation).sort((a,b)=>b[1]-a[1])[0];
+  [
+    {cls:'red',   label:'방한 외국인 (최신월)',     val:D.latest_total.toLocaleString()+'명', sub:D.latest_month+' 기준'},
+    {cls:'yellow',label:'광진구 외국인 방문 (추정)', val:D.gwangjin_latest.toLocaleString()+'명', sub:`전월比 ${gwChange>0?'+':''}${gwChange}%`},
+    {cls:'purple',label:'1위 국적 (최신월)',         val:topNation?topNation[0]:'—', sub:topNation?(topNation[1].toLocaleString()+'명'):''},
+    {cls:'cyan',  label:'광진구 / 서울 비중',        val:(D.gwangjin_latest/D.latest_total*100).toFixed(2)+'%', sub:'추정 — 서울 전체 대비'},
+  ].forEach(k=>{
+    const el = document.createElement('div');
+    el.className = `kpi-card ${k.cls}`;
+    el.innerHTML = `<div class="kpi-label">${k.label}</div><div class="kpi-value">${k.val}</div><div class="kpi-sub">${k.sub}</div>`;
+    kpiWrap.appendChild(el);
+  });
+
+  const lineBase = {
+    responsive:true, maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:true,position:'bottom',labels:{color:'#9ba3bf',font:{size:9},boxWidth:10,padding:8}}},
+    scales:{
+      x:{ticks:{color:'#5a6382',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},
+      y:{ticks:{color:'#5a6382',font:{size:9},callback:v=>v>=10000?(v/10000).toFixed(0)+'만':v},grid:{color:'rgba(255,255,255,0.04)'}}
+    }
+  };
+  const barBase = {...lineBase, plugins:{...lineBase.plugins,legend:{display:true,position:'top',labels:{color:'#9ba3bf',font:{size:9},boxWidth:10,padding:8}}}};
+
+  // 전체 방문자 라인
+  new Chart(document.getElementById('fg-c-total'), {
+    type:'line',
+    data:{
+      labels: D.month_labels,
+      datasets:[{
+        label:'전체 방한 외국인',
+        data: D.total_series,
+        borderColor:'rgba(79,143,255,1)', backgroundColor:'rgba(79,143,255,0.08)',
+        borderWidth:2, fill:true, tension:0.3, pointRadius:3,
+      }]
+    },
+    options:{...lineBase,maintainAspectRatio:false}
+  });
+
+  // 국적별 도넛
+  const NATION_COLORS = ['rgba(255,107,107,0.85)','rgba(255,209,102,0.85)','rgba(79,143,255,0.85)','rgba(6,214,160,0.85)','rgba(180,142,244,0.85)'];
+  const nationKeys = Object.keys(D.latest_by_nation);
+  new Chart(document.getElementById('fg-c-nation-pie'), {
+    type:'doughnut',
+    data:{
+      labels: nationKeys,
+      datasets:[{
+        data: nationKeys.map(k=>D.latest_by_nation[k]),
+        backgroundColor: NATION_COLORS,
+        borderColor: 'rgba(14,16,24,0.8)', borderWidth:2,
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{display:true,position:'bottom',labels:{color:'#9ba3bf',font:{size:10},padding:10}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw.toLocaleString()}명 (${((ctx.raw/D.latest_total)*100).toFixed(1)}%)`}}
+      }
+    }
+  });
+
+  // 국적별 라인
+  const nColors = {'중국':'rgba(255,107,107,0.9)','일본':'rgba(255,209,102,0.9)','미국':'rgba(79,143,255,0.9)','동남아':'rgba(6,214,160,0.9)','기타':'rgba(180,142,244,0.7)'};
+  const nDatasets = Object.entries(D.nation_series).map(([name,vals])=>({
+    label:name, data:vals,
+    borderColor:nColors[name]||'rgba(255,255,255,0.5)',
+    backgroundColor:'transparent', borderWidth:1.5, pointRadius:2, tension:0.3,
+  }));
+  new Chart(document.getElementById('fg-c-nation-line'),{
+    type:'line',
+    data:{labels:D.month_labels, datasets:nDatasets},
+    options:{...lineBase,maintainAspectRatio:false}
+  });
+
+  // 자치구 비교 바
+  const l1 = D.district_label1 || '2024', l2 = D.district_label2 || '2025';
+  const el = document.getElementById('fg-district-years');
+  if(el) el.textContent = `(${l1} vs ${l2})`;
+  const gwIdx = D.district_names.indexOf('광진구');
+  const distColors23 = D.district_names.map((_,i)=> i===gwIdx?'rgba(255,107,107,0.4)':'rgba(79,143,255,0.35)');
+  const distColors24 = D.district_names.map((_,i)=> i===gwIdx?'rgba(255,107,107,0.85)':'rgba(79,143,255,0.65)');
+  new Chart(document.getElementById('fg-c-district'),{
+    type:'bar',
+    data:{
+      labels:D.district_names,
+      datasets:[
+        {label:(D.district_label1||'2024')+'년',data:D.district_year1||D.district_2023,backgroundColor:distColors23,borderRadius:3},
+        {label:(D.district_label2||'2025')+'년',data:D.district_year2||D.district_2024,backgroundColor:distColors24,borderRadius:3},
+      ]
+    },
+    options:{...barBase,maintainAspectRatio:false,
+      scales:{
+        x:{ticks:{color:'#9ba3bf',font:{size:10}},grid:{display:false}},
+        y:{ticks:{color:'#5a6382',font:{size:9},callback:v=>(v/10000).toFixed(0)+'만'},grid:{color:'rgba(255,255,255,0.04)'}}
+      }
+    }
+  });
+
+  // 광진구 월별
+  new Chart(document.getElementById('fg-c-gwangjin'),{
+    type:'bar',
+    data:{
+      labels:D.gwangjin_labels,
+      datasets:[{
+        label:'광진구 외국인 방문 (추정)',
+        data:D.gwangjin_values,
+        backgroundColor: D.gwangjin_labels.map((_,i)=> i===D.gwangjin_labels.length-1?'rgba(255,107,107,0.85)':'rgba(79,143,255,0.55)'),
+        borderRadius:4,
+      }]
+    },
+    options:{...barBase,maintainAspectRatio:false,
+      plugins:{...barBase.plugins,legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#9ba3bf',font:{size:10}},grid:{display:false}},
+        y:{ticks:{color:'#5a6382',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}}
+      }
+    }
+  });
+}
+
+// ─── 트렌드 차트 ───
+let trendInited=false;
+function initTrend(){
+  if(trendInited) return; trendInited=true;
+  const COLORS=['rgba(255,107,107,1)','rgba(79,143,255,0.85)','rgba(61,214,140,0.85)','rgba(255,209,102,0.85)','rgba(180,142,244,0.85)','rgba(6,214,160,0.85)','rgba(255,159,67,0.85)'];
+  const lineOpts={responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,position:'bottom',labels:{color:'#9ba3bf',font:{size:9},boxWidth:10,padding:8}}},scales:{x:{ticks:{color:'#5a6382',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#5a6382',font:{size:9},callback:v=>v.toLocaleString()},grid:{color:'rgba(255,255,255,0.04)'}}}};
+  function makeDS(field){
+    return H.map((h,i)=>({
+      label:h.name.replace('건대예쁨주의쁨의원','우리병원'),
+      data:h.records.map(r=>({x:r.d,y:r[field]})),
+      borderColor:COLORS[i],
+      backgroundColor:'transparent',
+      borderWidth:h.mine?3:1.5,
+      borderDash:h.mine?[]:[4,3],
+      pointRadius:h.mine?5:3,
+      tension:0.3,
+    }));
+  }
+  new Chart(document.getElementById('c-trend-review'),{type:'line',data:{datasets:makeDS('nr')},options:{...lineOpts,scales:{...lineOpts.scales,x:{...lineOpts.scales.x,type:'category'}}}});
+  new Chart(document.getElementById('c-trend-insta'),{type:'line',data:{datasets:makeDS('ig')},options:{...lineOpts,scales:{...lineOpts.scales,x:{...lineOpts.scales.x,type:'category'}}}});
+  new Chart(document.getElementById('c-trend-google'),{type:'line',data:{datasets:makeDS('gr')},options:{...lineOpts,scales:{...lineOpts.scales,x:{...lineOpts.scales.x,type:'category'}}}});
+
+  // ── 데이터랩 차트 ──
+  const DL = window.DATALAB_DATA;
+  if(!DL){ document.getElementById('datalab-notice').style.display='block'; return; }
+  document.getElementById('datalab-updated').textContent = DL.updated_at + ' 기준';
+
+  const dlLabels = DL.labels.map(l=>l.slice(2)); // "2024-01" → "24.01"
+  const HNAME_MAP = {
+    '예쁨주의쁨':'우리병원','톡스앤필':'톡스앤필','닥터쁘띠':'닥터쁘띠',
+    '닥터에버스':'닥터에버스','데이뷰':'데이뷰','톤즈':'톤즈','유앤아이':'유앤아이'
+  };
+  const dlColors = ['rgba(255,107,107,1)','rgba(79,143,255,0.85)','rgba(61,214,140,0.85)',
+    'rgba(255,209,102,0.85)','rgba(180,142,244,0.85)','rgba(6,214,160,0.85)','rgba(255,159,67,0.85)'];
+  const dlLineOpts = {
+    responsive:true, maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:true,position:'bottom',labels:{color:'#9ba3bf',font:{size:9},boxWidth:10,padding:8}}},
+    scales:{
+      x:{ticks:{color:'#5a6382',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'}},
+      y:{min:0,ticks:{color:'#5a6382',font:{size:9}},grid:{color:'rgba(255,255,255,0.04)'},title:{display:true,text:'검색지수(0~100)',color:'#5a6382',font:{size:9}}}
+    }
+  };
+
+  // 전체 비교 차트
+  const totalMonths = dlLabels.length;
+  const allDS = Object.entries(DL.series).map(([name,vals],i)=>{
+    // 데이터 길이가 짧으면 앞에 null 패딩 (개업 전 기간)
+    const padded = vals.length < totalMonths
+      ? Array(totalMonths - vals.length).fill(null).concat(vals)
+      : vals;
+    return {
+      label: HNAME_MAP[name]||name,
+      data: padded,
+      borderColor: dlColors[i % dlColors.length],
+      backgroundColor: 'transparent',
+      borderWidth: name==='예쁨주의쁨'?3:1.5,
+      borderDash: name==='예쁨주의쁨'?[]:[4,3],
+      pointRadius: name==='예쁨주의쁨'?4:2,
+      spanGaps: false,
+      tension: 0.3,
+    };
+  });
+  new Chart(document.getElementById('c-datalab-all'),{type:'line',data:{labels:dlLabels,datasets:allDS},options:dlLineOpts});
+
+  // 우리 병원 단독
+  const mineVals = DL.series['예쁨주의쁨']||[];
+  new Chart(document.getElementById('c-datalab-mine'),{type:'line',data:{labels:dlLabels,datasets:[{
+    label:'우리병원',data:mineVals,borderColor:'rgba(255,107,107,1)',
+    backgroundColor:'rgba(255,107,107,0.08)',fill:true,borderWidth:2,pointRadius:3,tension:0.3
+  }]},options:dlLineOpts});
+
+  // TOP3 (우리 병원 제외 평균값 기준 상위 3)
+  const others = Object.entries(DL.series).filter(([n])=>n!=='예쁨주의쁨');
+  const avgScore = others.map(([n,v])=>({name:n,avg:v.reduce((a,b)=>a+b,0)/v.length}));
+  avgScore.sort((a,b)=>b.avg-a.avg);
+  const top3DS = avgScore.slice(0,3).map(({name},i)=>{
+    const vals = DL.series[name];
+    const padded = vals.length < totalMonths
+      ? Array(totalMonths - vals.length).fill(null).concat(vals)
+      : vals;
+    return {
+      label: HNAME_MAP[name]||name,
+      data: padded,
+      borderColor: dlColors[i+1],
+      backgroundColor:'transparent',
+      spanGaps: false,
+      borderWidth:2, pointRadius:3, tension:0.3
+    };
+  });
+  new Chart(document.getElementById('c-datalab-top3'),{type:'line',data:{labels:dlLabels,datasets:top3DS},options:dlLineOpts});
+}
+
+// ── 매출 추정 (독립) ──
+const TODAY_YEAR = 2026, TODAY_MONTH = 4;
+let revenueChart = null, revTrendChart = null;
+
+function rvFmt(v){ return v >= 100000000 ? (v/100000000).toFixed(1)+'억' : (v/10000).toFixed(0)+'만'; }
+
+function parseRecordDate(ds){
+  const p = ds.split('.');
+  return new Date(2000+parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2]));
+}
+
+window.updateRevenue = function(){
+  const rate    = parseFloat(document.getElementById('rv-rate').value) / 100;
+  const price   = parseInt(document.getElementById('rv-price').value) * 10000;
+  const retRate = parseFloat(document.getElementById('rv-return').value) / 100;
+  const divisor = rate * (1 - retRate);
+  document.getElementById('rv-rate-val').textContent    = (rate*100).toFixed(1);
+  document.getElementById('rv-price-val').textContent   = price/10000;
+  document.getElementById('rv-return-val').textContent  = (retRate*100).toFixed(0);
+
+  // 메인 테이블
+  const tbody = document.getElementById('rv-tbody');
+  tbody.innerHTML = '';
+  const chartData = [];
+
+  H.forEach(h => {
+    if(!h.naver_review || !h.open_year) return;
+    const monthsOpen = Math.max(1, (TODAY_YEAR - h.open_year) * 12 + (TODAY_MONTH - 1));
+    let mr = h.naver_review / monthsOpen, method = '평균';
+    if(h.records && h.records.length >= 2){
+      const prev = h.records[h.records.length-2], cur = h.records[h.records.length-1];
+      const days = Math.max(1, Math.round((parseRecordDate(cur.d) - parseRecordDate(prev.d)) / 86400000));
+      const nr = (cur.nr||0) - (prev.nr||0);
+      if(nr > 0){ mr = nr / days * 30; method = '최근'; }
+    }
+    const patients = Math.round(mr / divisor);
+    const rev = patients * price;
+    const yearly = rev * 12;
+    const perDoc = h.doctors ? rev / h.doctors : null;
+    const tag = method==='최근'
+      ? '<span style="font-size:9px;color:var(--green);margin-left:4px">●최근</span>'
+      : '<span style="font-size:9px;color:var(--text3);margin-left:4px">○평균</span>';
+    chartData.push({name:h.name.replace('건대예쁨주의쁨의원','우리병원'), val:rev, mine:h.mine});
+    const tr = document.createElement('tr');
+    if(h.mine) tr.style.cssText='background:rgba(255,107,107,0.04)';
+    tr.innerHTML=`
+      <td class="left"><b>${h.mine?'🏠 ':''}${h.name.replace('건대예쁨주의쁨의원','우리병원')}</b></td>
+      <td>${h.open_year}</td>
+      <td style="font-family:var(--mono)">${h.naver_review.toLocaleString()}</td>
+      <td style="font-family:var(--mono)">${mr.toFixed(1)}${tag}</td>
+      <td style="font-family:var(--mono);color:var(--accent)">${patients.toLocaleString()}</td>
+      <td style="font-family:var(--mono);color:var(--green);font-weight:700">${rvFmt(rev)}</td>
+      <td style="font-family:var(--mono);color:var(--yellow)">${rvFmt(yearly)}</td>
+      <td style="font-family:var(--mono);color:var(--text2)">${perDoc?rvFmt(perDoc):'—'}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  if(revenueChart) revenueChart.destroy();
+  revenueChart = new Chart(document.getElementById('c-revenue'),{
+    type:'bar',
+    data:{labels:chartData.map(d=>d.name),datasets:[{
+      label:'월 매출 추정',data:chartData.map(d=>d.val),
+      backgroundColor:chartData.map(d=>d.mine?'rgba(255,107,107,0.85)':'rgba(79,143,255,0.55)'),
+      borderColor:chartData.map(d=>d.mine?'rgba(255,107,107,1)':'rgba(79,143,255,0.9)'),
+      borderWidth:2,borderRadius:4
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+rvFmt(ctx.raw)+'원'}}},
+      scales:{
+        x:{ticks:{color:'#9ba3bf',font:{size:10}},grid:{display:false}},
+        y:{ticks:{color:'#5a6382',font:{size:9},callback:v=>rvFmt(v)},grid:{color:'rgba(255,255,255,0.04)'}}
+      }}
+  });
+
+  // 매출 추이
+  const tBody2 = document.getElementById('rv-trend-tbody');
+  if(!tBody2) return;
+  tBody2.innerHTML = '';
+  const trendData = [];
+
+  H.forEach(h=>{
+    if(!h.records || h.records.length<2 || !h.naver_review || !h.open_year) return;
+    const prev=h.records[h.records.length-2], cur=h.records[h.records.length-1];
+    const days=Math.max(1, Math.round((parseRecordDate(cur.d)-parseRecordDate(prev.d))/86400000));
+    const newRev=(cur.nr||0)-(prev.nr||0);
+    const monthsOpen=Math.max(1,(TODAY_YEAR-h.open_year)*12+(TODAY_MONTH-1));
+    const curMR = newRev>0 ? newRev/days*30 : h.naver_review/monthsOpen;
+    const prevMR = prev.nr / monthsOpen;
+    const curPat=Math.round(curMR/divisor), prevPat=Math.round(prevMR/divisor);
+    const curRev=curPat*price, prevRev=prevPat*price;
+    const chg=prevRev>0?Math.round((curRev-prevRev)/prevRev*100):0;
+    const daily=newRev/days;
+    trendData.push({name:h.name.replace('건대예쁨주의쁨의원','우리병원'),mine:h.mine,
+      prevD:prev.d,curD:cur.d,days,prevNr:prev.nr,curNr:cur.nr,newRev,daily,curPat,curRev,prevRev,chg});
+    const cc=chg>0?'var(--green)':chg<0?'var(--accent2)':'var(--text3)';
+    const nc=newRev>=0?'var(--green)':'var(--accent2)';
+    const tr=document.createElement('tr');
+    if(h.mine) tr.style.cssText='background:rgba(255,107,107,0.04)';
+    tr.innerHTML=`
+      <td class="left"><b>${h.mine?'🏠 ':''}${trendData[trendData.length-1].name}</b></td>
+      <td style="font-family:var(--mono)">${(prev.nr||0).toLocaleString()}</td>
+      <td style="font-family:var(--mono)">${(cur.nr||0).toLocaleString()}</td>
+      <td style="font-family:var(--mono);color:${nc};font-weight:700">${newRev>=0?'+':''}${newRev}</td>
+      <td style="font-family:var(--mono)">${daily.toFixed(1)}</td>
+      <td style="font-family:var(--mono);color:var(--accent)">${curPat.toLocaleString()}</td>
+      <td style="font-family:var(--mono);color:var(--green);font-weight:700">${rvFmt(curRev)}</td>
+      <td style="font-family:var(--mono);color:${cc};font-weight:700">${chg>=0?'+':''}${chg}%</td>`;
+    tBody2.appendChild(tr);
+  });
+
+  if(trendData.length>0){
+    const d=trendData[0];
+    document.getElementById('rv-trend-info').innerHTML=
+      `📊 <b>${d.prevD}</b> → <b>${d.curD}</b> (${d.days}일간) 리뷰 증가 속도 기반 매출 추정`;
+  }
+
+  if(revTrendChart) revTrendChart.destroy();
+  const cv=document.getElementById('c-revenue-trend');
+  if(cv && trendData.length>0){
+    revTrendChart=new Chart(cv,{type:'bar',
+      data:{labels:trendData.map(d=>d.name),datasets:[
+        {label:'이전(개업기간 기반)',data:trendData.map(d=>d.prevRev),backgroundColor:'rgba(79,143,255,0.3)',borderColor:'rgba(79,143,255,0.7)',borderWidth:1,borderRadius:2},
+        {label:'현재(리뷰 속도 기반)',data:trendData.map(d=>d.curRev),
+          backgroundColor:trendData.map(d=>d.mine?'rgba(255,107,107,0.7)':'rgba(61,214,140,0.5)'),
+          borderColor:trendData.map(d=>d.mine?'rgba(255,107,107,1)':'rgba(61,214,140,0.9)'),borderWidth:2,borderRadius:4}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#9ba3bf',font:{size:10},boxWidth:12}},tooltip:{callbacks:{label:ctx=>' '+rvFmt(ctx.raw)+'원'}}},
+        scales:{
+          x:{ticks:{color:'#9ba3bf',font:{size:10}},grid:{display:false}},
+          y:{ticks:{color:'#5a6382',font:{size:9},callback:v=>rvFmt(v)},grid:{color:'rgba(255,255,255,0.04)'}}
+        }}
+    });
+  }
+};
+
+// ─── 프랜차이즈 비교 탭 ───
+let franchiseInited = false;
+function initFranchise(){
+  if(franchiseInited) return;
+  franchiseInited = true;
+
+  const BD = window.BRANCHES_DATA;
+  if(!BD){ document.getElementById('franchise-no-data').style.display='block'; document.getElementById('franchise-content').style.display='none'; return; }
+
+  const branches = BD.branches;
+  const labels = BD.labels;
+
+  // 순위 정렬 (강남 제외)
+  const ranked = Object.entries(branches).filter(([n])=>n!=='강남').sort((a,b)=>b[1].adj_avg - a[1].adj_avg);
+  const myRank = ranked.findIndex(([n])=>n==='건대') + 1;
+  const top1 = ranked[0];
+  const myAvg = branches['건대']?.adj_avg || 0;
+  const gangnamAvg = branches['강남']?.adj_avg || 0;
+  const jamsilAvg = branches['잠실']?.adj_avg || 0;
+  const allAvgs = ranked.map(([,v])=>v.adj_avg);
+  const mean = Math.round(allAvgs.reduce((a,b)=>a+b,0)/allAvgs.length * 10)/10;
+
+  // 2024 vs 2025 성장률 계산
+  function yearAvg(series, start, end){
+    const s = series.slice(start,end).filter(x=>x!==null);
+    return s.length ? Math.round(s.reduce((a,b)=>a+b,0)/s.length * 10)/10 : 0;
+  }
+  const growthData = ranked.map(([name,v])=>{
+    const a24 = yearAvg(v.series, 0, 12);
+    const a25 = yearAvg(v.series, 12, 24);
+    const chg = a24 > 0 ? Math.round((a25-a24)/a24*100) : 0;
+    return {name, a24, a25, chg, adj_avg: v.adj_avg};
+  });
+  const rising = growthData.filter(d=>d.chg > 5).sort((a,b)=>b.chg-a.chg);
+  const falling = growthData.filter(d=>d.chg < -5).sort((a,b)=>a.chg-b.chg);
+  const stable = growthData.filter(d=>d.chg >= -5 && d.chg <= 5);
+
+  // KPI 카드
+  document.getElementById('franchise-kpi').innerHTML = `
+    <div class="kpi-card blue"><div class="kpi-label">건대 전국 순위</div><div class="kpi-value" style="color:var(--accent)">${myRank}위</div><div class="kpi-sub">전체 ${ranked.length}개 지점 중</div></div>
+    <div class="kpi-card green"><div class="kpi-label">건대 검색지수</div><div class="kpi-value">${myAvg}</div><div class="kpi-sub">강남(${gangnamAvg}) 대비 ${Math.round(myAvg/gangnamAvg*100)}%</div></div>
+    <div class="kpi-card yellow"><div class="kpi-label">전국 1위 지점</div><div class="kpi-value" style="font-size:16px;color:var(--yellow)">${top1[0]}</div><div class="kpi-sub">지수 ${top1[1].adj_avg}</div></div>
+    <div class="kpi-card"><div class="kpi-label">잠실 검색지수</div><div class="kpi-value">${jamsilAvg}</div><div class="kpi-sub">건대 대비 ${Math.round(jamsilAvg/myAvg*100)}% · 2025년 +10%↑</div></div>
+    <div class="kpi-card cyan"><div class="kpi-label">성장 지점 수</div><div class="kpi-value" style="color:var(--green)">${rising.length}개</div><div class="kpi-sub">전체 대비 ${Math.round(rising.length/ranked.length*100)}%</div></div>
+  `;
+
+  // ── 월별 변동 분석 ──
+  const totalMonths = labels.length;
+  const latestIdx = totalMonths - 1;      // 최신 완전월 (부분월일 수 있음)
+  // 부분월 감지: 마지막 값이 전월 대비 극단적으로 낮으면 부분월
+  const isPartial = (function(){
+    const gd = branches['건대'];
+    if(!gd || !gd.series[latestIdx] || !gd.series[latestIdx-1]) return false;
+    return gd.series[latestIdx] < gd.series[latestIdx-1] * 0.3;
+  })();
+  const curIdx = isPartial ? latestIdx - 1 : latestIdx;
+  const prevIdx = curIdx - 1;
+  const yoyIdx = curIdx - 12;
+  const curLabel = labels[curIdx] || '';
+  const prevLabel = labels[prevIdx] || '';
+  const yoyLabel = yoyIdx >= 0 ? labels[yoyIdx] : '';
+
+  document.getElementById('monthly-period-tag').textContent =
+    `${curLabel} 기준 · 전월(${prevLabel}) 대비 · 전년 동월(${yoyLabel}) 대비`;
+
+  // 각 지점 월별 데이터 계산
+  const monthlyData = Object.entries(branches).filter(([n])=>n!=='강남').map(([name, v])=>{
+    const cur = v.series[curIdx];
+    const prev = v.series[prevIdx];
+    const yoy = yoyIdx >= 0 ? v.series[yoyIdx] : null;
+    const mom = (cur && prev) ? Math.round((cur - prev) / prev * 100) : null;
+    const yoyChg = (cur && yoy) ? Math.round((cur - yoy) / yoy * 100) : null;
+    return { name, cur: cur||0, prev: prev||0, yoy: yoy||0, mom, yoyChg };
+  }).filter(d=>d.cur > 0);
+
+  // 순위 계산 (현재월, 전월)
+  const curRanked = [...monthlyData].sort((a,b)=>b.cur - a.cur);
+  const prevRanked = [...monthlyData].sort((a,b)=>b.prev - a.prev);
+  curRanked.forEach((d,i)=>d.curRank = i+1);
+  monthlyData.forEach(d=>{
+    d.curRank = curRanked.findIndex(x=>x.name===d.name)+1;
+    d.prevRank = prevRanked.findIndex(x=>x.name===d.name)+1;
+    d.rankChg = d.prevRank - d.curRank; // 양수=순위 상승
+  });
+
+  // 정렬: 현재월 순위순
+  monthlyData.sort((a,b)=>a.curRank - b.curRank);
+
+  // 테이블 생성
+  const mhtml = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:30px">순위</th>
+          <th class="left">지점</th>
+          <th>${curLabel}<br>검색지수</th>
+          <th>전월 대비<br>(MoM)</th>
+          <th>전년 동월<br>(YoY)</th>
+          <th>순위 변동</th>
+        </tr></thead>
+        <tbody>
+          ${monthlyData.map(d=>{
+            const isMine = d.name==='건대';
+            const momColor = d.mom>0?'var(--green)':d.mom<0?'var(--accent2)':'var(--text3)';
+            const yoyColor = d.yoyChg>0?'var(--green)':d.yoyChg<0?'var(--accent2)':'var(--text3)';
+            const rankIcon = d.rankChg>0?'▲':d.rankChg<0?'▼':'—';
+            const rankColor = d.rankChg>0?'var(--green)':d.rankChg<0?'var(--accent2)':'var(--text3)';
+            return `<tr${isMine?' class="mine"':''}>
+              <td style="font-family:var(--mono);font-weight:700;color:${isMine?'var(--accent2)':'var(--text2)'}">${d.curRank}</td>
+              <td class="name-cell"><span class="${isMine?'mine ':''}hname">${isMine?'🏠 ':''}${d.name}</span></td>
+              <td style="font-family:var(--mono);font-weight:700">${d.cur.toFixed(1)}</td>
+              <td style="font-family:var(--mono);color:${momColor};font-weight:600">${d.mom!==null?(d.mom>=0?'+':'')+d.mom+'%':'—'}</td>
+              <td style="font-family:var(--mono);color:${yoyColor};font-weight:600">${d.yoyChg!==null?(d.yoyChg>=0?'+':'')+d.yoyChg+'%':'—'}</td>
+              <td style="font-family:var(--mono);color:${rankColor};font-weight:700">${rankIcon} ${Math.abs(d.rankChg)||''}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px">
+      <div style="background:var(--surface2);border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:8px">📈 이번 달 급등 (MoM)</div>
+        ${monthlyData.filter(d=>d.mom>10).sort((a,b)=>b.mom-a.mom).slice(0,5).map(d=>
+          `<div style="font-size:11px;color:var(--text2);margin-bottom:4px">${d.name} <span style="color:var(--green);font-family:var(--mono);font-weight:700">+${d.mom}%</span> (${d.prev.toFixed(0)}→${d.cur.toFixed(0)})</div>`
+        ).join('')||'<div style="font-size:11px;color:var(--text3)">해당 없음</div>'}
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--accent2);margin-bottom:8px">📉 이번 달 급락 (MoM)</div>
+        ${monthlyData.filter(d=>d.mom<-10).sort((a,b)=>a.mom-b.mom).slice(0,5).map(d=>
+          `<div style="font-size:11px;color:var(--text2);margin-bottom:4px">${d.name} <span style="color:var(--accent2);font-family:var(--mono);font-weight:700">${d.mom}%</span> (${d.prev.toFixed(0)}→${d.cur.toFixed(0)})</div>`
+        ).join('')||'<div style="font-size:11px;color:var(--text3)">해당 없음</div>'}
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--yellow);margin-bottom:8px">🔄 순위 변동</div>
+        ${monthlyData.filter(d=>Math.abs(d.rankChg)>=2).sort((a,b)=>Math.abs(b.rankChg)-Math.abs(a.rankChg)).slice(0,5).map(d=>
+          `<div style="font-size:11px;color:var(--text2);margin-bottom:4px">${d.name} <span style="color:${d.rankChg>0?'var(--green)':'var(--accent2)'};font-family:var(--mono);font-weight:700">${d.rankChg>0?'▲':'▼'}${Math.abs(d.rankChg)}단계</span> (${d.prevRank}위→${d.curRank}위)</div>`
+        ).join('')||'<div style="font-size:11px;color:var(--text3)">큰 변동 없음</div>'}
+      </div>
+    </div>
+    ${isPartial?`<div style="font-size:10px;color:var(--text3);margin-top:8px">* ${labels[latestIdx]}은 부분값이므로 직전 완전월(${curLabel}) 기준으로 분석</div>`:''}
+  `;
+  document.getElementById('franchise-monthly').innerHTML = mhtml;
+
+  // 바 차트 색상: 성장=초록, 하락=빨강, 안정=파랑, 건대=빨강(강조)
+  const growthMap = {};
+  growthData.forEach(d=>growthMap[d.name]=d.chg);
+  const bColors = ranked.map(([n])=>{
+    if(n==='건대') return 'rgba(255,107,107,0.9)';
+    const chg = growthMap[n]||0;
+    if(chg>5) return 'rgba(61,214,140,0.55)';
+    if(chg<-5) return 'rgba(255,107,107,0.45)';
+    return 'rgba(79,143,255,0.5)';
+  });
+  const bBorders = ranked.map(([n])=>{
+    if(n==='건대') return 'rgba(255,107,107,1)';
+    const chg = growthMap[n]||0;
+    if(chg>5) return 'rgba(61,214,140,0.9)';
+    if(chg<-5) return 'rgba(255,107,107,0.8)';
+    return 'rgba(79,143,255,0.9)';
+  });
+
+  // 순위 바 차트 (가로) - 2025 평균 기준
+  new Chart(document.getElementById('c-branch-bar'),{
+    type:'bar',
+    data:{
+      labels: ranked.map(([n])=>n),
+      datasets:[
+        {label:'2024 평균',data:growthData.map(d=>d.a24),backgroundColor:'rgba(79,143,255,0.25)',borderColor:'rgba(79,143,255,0.6)',borderWidth:1,borderRadius:2},
+        {label:'2025 평균',data:growthData.map(d=>d.a25),backgroundColor:bColors,borderColor:bBorders,borderWidth:1,borderRadius:4},
+      ]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true,
+      plugins:{
+        legend:{labels:{color:'#9ba3bf',font:{size:10},boxWidth:10}},
+        tooltip:{callbacks:{label:ctx=>{
+          const d=growthData[ctx.dataIndex];
+          return ctx.datasetIndex===0?`2024평균: ${d.a24}`:`2025평균: ${d.a25} (${d.chg>=0?'+':''}${d.chg}%)`;
+        }}}
+      },
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#9ba3bf',font:{size:10}}},
+        y:{grid:{display:false},ticks:{color:'#e8eaf2',font:{size:11,weight:'600'}}}
+      }
+    }
+  });
+
+  const lineOpts = {
+    responsive:true,
+    plugins:{legend:{labels:{color:'#9ba3bf',font:{size:10},boxWidth:12}},tooltip:{mode:'index',intersect:false}},
+    scales:{
+      x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#9ba3bf',font:{size:9},maxTicksLimit:14}},
+      y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#9ba3bf',font:{size:10}}}
+    },
+    interaction:{mode:'index',intersect:false}
+  };
+
+  const lineColors = ['#ff6b6b','#4f8fff','#3dd68c','#ffd166','#b48ef4','#06d6a0','#ff9f43','#a8dadc'];
+
+  // 상위 8개 추이 (강남 제외 상위 + 건대 포함)
+  const top8names = ['건대',...ranked.filter(([n])=>n!=='건대').slice(0,7).map(([n])=>n)];
+  const top8DS = top8names.map((name,i)=>{
+    const v = branches[name]; if(!v) return null;
+    return {
+      label:name, data:v.series,
+      borderColor: name==='건대'?'#ff6b6b':lineColors[i%lineColors.length],
+      backgroundColor:'transparent',
+      borderWidth: name==='건대'?3:1.5,
+      borderDash: name==='건대'?[]:[4,3],
+      pointRadius: name==='건대'?4:2,
+      spanGaps:false, tension:0.3
+    };
+  }).filter(Boolean);
+  new Chart(document.getElementById('c-branch-trend'),{type:'line',data:{labels,datasets:top8DS},options:lineOpts});
+
+  // 건대 단독
+  new Chart(document.getElementById('c-branch-mine'),{type:'line',data:{labels,datasets:[{
+    label:'건대점',data:branches['건대']?.series||[],borderColor:'#ff6b6b',backgroundColor:'rgba(255,107,107,0.08)',
+    fill:true,borderWidth:2,pointRadius:3,tension:0.3,spanGaps:false
+  }]},options:lineOpts});
+
+  // 건대 vs 상위 3개
+  const top3others = ranked.filter(([n])=>n!=='건대').slice(0,3);
+  new Chart(document.getElementById('c-branch-vs'),{type:'line',data:{labels,datasets:[
+    {label:'건대',data:branches['건대']?.series||[],borderColor:'#ff6b6b',backgroundColor:'transparent',borderWidth:2.5,pointRadius:3,tension:0.3,spanGaps:false},
+    ...top3others.map(([n,v],i)=>({label:n,data:v.series,borderColor:lineColors[i+1],backgroundColor:'transparent',borderWidth:1.5,borderDash:[4,3],pointRadius:2,tension:0.3,spanGaps:false}))
+  ]},options:lineOpts});
+
+  // 2024 vs 2025 성장률 카드
+  function growthCard(title,color,items){
+    return `<div style="background:var(--surface2);border-radius:10px;padding:14px;flex:1">
+      <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:10px">${title}</div>
+      ${items.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:11px">
+        <span style="color:var(--text2)">${d.name}</span>
+        <div style="text-align:right">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text3)">${d.a24}→${d.a25}</span>
+          <span style="font-family:var(--mono);font-weight:700;color:${color};margin-left:6px">${d.chg>=0?'+':''}${d.chg}%</span>
+        </div>
+      </div>`).join('')}
+    </div>`;
+  }
+  document.getElementById('franchise-growth').innerHTML = `
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      ${growthCard('📈 성장 중 (2024→2025 +5% 이상)','var(--green)',rising)}
+      ${growthCard('→ 안정 (±5% 이내)','var(--text2)',stable)}
+      ${growthCard('📉 하락 중 (2024→2025 -5% 이하)','var(--accent2)',falling)}
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:8px">* 2026년 3월 데이터는 월 초 부분값이므로 연간 비교에서 제외</div>
+  `;
+
+  // 강남/잠실/건대 비교 차트
+  new Chart(document.getElementById('c-branch-seoul'),{type:'line',data:{labels,datasets:[
+    {label:'건대',data:branches['건대']?.series||[],borderColor:'#ff6b6b',backgroundColor:'rgba(255,107,107,0.06)',fill:true,borderWidth:2.5,pointRadius:3,tension:0.3,spanGaps:false},
+    {label:'강남',data:branches['강남']?.series||[],borderColor:'#4f8fff',backgroundColor:'transparent',borderWidth:2,borderDash:[5,3],pointRadius:2,tension:0.3,spanGaps:false},
+    {label:'잠실',data:branches['잠실']?.series||[],borderColor:'#3dd68c',backgroundColor:'transparent',borderWidth:2,borderDash:[2,2],pointRadius:2,tension:0.3,spanGaps:false},
+    {label:'노원',data:branches['노원']?.series||[],borderColor:'#ffd166',backgroundColor:'transparent',borderWidth:1.5,borderDash:[4,4],pointRadius:2,tension:0.3,spanGaps:false},
+  ]},options:lineOpts});
+
+  // 분석 카드
+  document.getElementById('franchise-analysis').innerHTML = [
+    {title:'🏆 전국 순위 TOP 5', color:'var(--yellow)', content:
+      ranked.slice(0,5).map(([n,v],i)=>`<div style="display:flex;justify-content:space-between;margin-bottom:5px">
+        <span>${i+1}위 ${n}</span>
+        <span style="color:var(--yellow);font-family:var(--mono)">${v.adj_avg} <span style="font-size:9px;color:${(growthMap[n]||0)>5?'var(--green)':(growthMap[n]||0)<-5?'var(--accent2)':'var(--text3)'}">${(growthMap[n]||0)>=0?'+':''}${growthMap[n]||0}%</span></span>
+      </div>`).join('')
+    },
+    {title:'📍 서울 지점 비교', color:'var(--accent)', content:`
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+        <div style="background:rgba(255,107,107,0.08);border-radius:6px;padding:8px;text-align:center">
+          <div style="font-size:9px;color:var(--text3)">건대</div>
+          <div style="font-size:16px;font-weight:700;color:#ff6b6b">${myAvg}</div>
+          <div style="font-size:9px;color:${(growthMap['건대']||0)<0?'var(--accent2)':'var(--green)'}">YoY ${(growthMap['건대']||0)>=0?'+':''}${growthMap['건대']||0}%</div>
+        </div>
+        <div style="background:rgba(79,143,255,0.08);border-radius:6px;padding:8px;text-align:center">
+          <div style="font-size:9px;color:var(--text3)">강남</div>
+          <div style="font-size:16px;font-weight:700;color:#4f8fff">${gangnamAvg}</div>
+          <div style="font-size:9px;color:var(--text3)">앵커 기준값</div>
+        </div>
+        <div style="background:rgba(61,214,140,0.08);border-radius:6px;padding:8px;text-align:center">
+          <div style="font-size:9px;color:var(--text3)">잠실</div>
+          <div style="font-size:16px;font-weight:700;color:#3dd68c">${jamsilAvg}</div>
+          <div style="font-size:9px;color:${(growthMap['잠실']||0)>0?'var(--green)':'var(--accent2)'}">YoY ${(growthMap['잠실']||0)>=0?'+':''}${growthMap['잠실']||0}%</div>
+        </div>
+        <div style="background:rgba(255,209,102,0.08);border-radius:6px;padding:8px;text-align:center">
+          <div style="font-size:9px;color:var(--text3)">노원</div>
+          <div style="font-size:16px;font-weight:700;color:#ffd166">${branches['노원']?.adj_avg||0}</div>
+          <div style="font-size:9px;color:${(growthMap['노원']||0)>0?'var(--green)':'var(--accent2)'}">YoY ${(growthMap['노원']||0)>=0?'+':''}${growthMap['노원']||0}%</div>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text3);line-height:1.6">잠실이 낮은 이유: 강남점(20분 거리)과 수요 겹침. 절대값은 낮지만 성장세는 건대보다 양호.</div>
+    `},
+    {title:'🌡️ 계절성 패턴', color:'var(--purple)', content:`
+      <div style="font-size:11px;color:var(--text2);line-height:1.8">
+        <b style="color:var(--purple)">봄(3~5월)</b> 전국 공통 피크 — 거의 모든 지점에서 연중 최고 수요<br>
+        <b style="color:var(--yellow)">여름~가을(7~10월)</b> 지점마다 다름 — 지방 도시는 유지, 서울권 완만 하락<br>
+        <b style="color:var(--accent2)">겨울(11~1월)</b> 비수기 공통 — 전국 동반 하락<br>
+        <b style="color:var(--green)">예외:</b> 노원·안산은 연중 고점 유지하며 비수기도 강함
+      </div>
+    `},
+    {title:'🚀 주목할 성장 지점', color:'var(--green)', content:`
+      <div style="font-size:11px;color:var(--text2);line-height:1.9">
+        <b style="color:var(--green)">분당 +611%</b> — 2024년 미미했다가 2025년 급성장. 신규 마케팅 드라이브?<br>
+        <b style="color:var(--green)">범계 +46%</b> — 2025년 6월부터 갑작스러운 급등. 특이 이벤트 가능성<br>
+        <b style="color:var(--green)">하남 +82%</b> — 꾸준한 상승 흐름<br>
+        <b style="color:var(--green)">노원 +29%</b> — 서울권 중 유일하게 강한 성장
+      </div>
+    `},
+    {title:'📉 하락 중인 지점', color:'var(--accent2)', content:`
+      <div style="font-size:11px;color:var(--text2);line-height:1.9">
+        <b style="color:var(--accent2)">울산 -29%</b> — 2024.01 피크 228 후 급락. 개원 초기 버즈 효과 소멸?<br>
+        <b style="color:var(--accent2)">천안 -8%</b> — 꾸준히 하락 중이나 여전히 전국 2위<br>
+        <b style="color:var(--accent2)">건대 -8%</b> — 절대 수치는 높지만 2024 대비 조정<br>
+        <b style="color:var(--accent2)">대전 -6.5%</b> — 압도적 1위지만 고점 대비 하락 추세
+      </div>
+    `},
+    {title:'⚠️ 해석 주의사항', color:'var(--text3)', content:`
+      <div style="font-size:11px;color:var(--text2);line-height:1.8">
+        • 검색량 ≠ 매출 (직접 상관 아님)<br>
+        • 지방: 경쟁자 적어 검색 집중 → 수치 높음<br>
+        • 서울: 지도앱·유동인구 방문 비중 높아 검색 낮음<br>
+        • 강남 수치는 배치1 기준 앵커값이며, 실제 강남점 비교는 "강남·잠실·건대 비교" 차트 참고<br>
+        • 2026.03은 월 초 부분값이므로 트렌드 참고용
+      </div>
+    `},
+  ].map(({title,color,content})=>`
+    <div style="background:var(--surface2);border-radius:10px;padding:16px">
+      <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:10px">${title}</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7">${content}</div>
+    </div>
+  `).join('');
+
+  // 종합 인사이트
+  // 인사이트 동적 생성
+  const daejeonChg = growthMap['대전']||0;
+  const bundangChg = growthMap['분당']||0;
+  const bumgyeChg = growthMap['범계']||0;
+  const hanamChg = growthMap['하남']||0;
+  const gundaeChg = growthMap['건대']||0;
+  const jamsilChg = growthMap['잠실']||0;
+  const top3rising = rising.slice(0,3).map(d=>`${d.name}(${d.chg>=0?'+':''}${d.chg}%)`).join(', ');
+
+  document.getElementById('franchise-insight').innerHTML = `
+    <div style="font-size:13px;font-weight:700;color:var(--text1);margin-bottom:14px">🔍 프랜차이즈 전체 검색 추이 종합 분석</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="font-size:11px;color:var(--text2);line-height:2;word-break:keep-all">
+        <b style="color:var(--yellow)">${top1[0]}이 전국 검색량 압도적 1위(지수 ${top1[1].adj_avg})</b>입니다. 지방 거점 도시에서 예쁨주의쁨의원이 사실상 독점 클리닉 위치를 차지하고 있어 브랜드 검색이 집중됩니다. 단, ${top1[0]}은 2024년 고점 대비 하락 추세(${daejeonChg>=0?'+':''}${daejeonChg}%)로, 천안·울산도 마찬가지입니다.<br><br>
+        <b style="color:var(--green)">2025년 가장 빠르게 성장한 지점은 ${top3rising}</b>으로, 수도권 경기 지역에서 브랜드 검색이 급격히 늘고 있습니다. 본사 입장에서는 이 지역 집중 마케팅이 ROI가 높을 수 있습니다.
+      </div>
+      <div style="font-size:11px;color:var(--text2);line-height:2;word-break:keep-all">
+        <b style="color:var(--accent)">건대(지수 ${myAvg}, 전국 ${myRank}위)</b>는 서울 지점 중 가장 높은 검색량을 보이지만, 경쟁자 7개로 인한 분산과 유동인구 직접 방문 특성상 절대 수치가 낮게 나타납니다. 2024→2025년 ${gundaeChg>=0?'+':''}${gundaeChg}% 조정은 경쟁 심화 반영으로 해석됩니다.<br><br>
+        <b style="color:var(--green)">잠실(지수 ${jamsilAvg})은 절대값은 낮지만 2024→2025년 ${jamsilChg>=0?'+':''}${jamsilChg}% ${jamsilChg>0?'성장':'변동'}</b> 중입니다. 강남점과 지리적으로 가까워(20분) 수요 일부가 강남으로 분산되는 구조적 한계가 있으나, 성장 가능성이 확인됩니다. <b style="color:var(--yellow)">전국 공통 계절성: 봄(3~5월) 수요 집중</b>이 모든 지점에서 반복 확인됩니다.
+      </div>
+    </div>
+  `;
+}
+</script>
+</body>
+</html>
