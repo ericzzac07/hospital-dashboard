@@ -661,7 +661,7 @@ function checkPw(){
   </div>
   <div class="input-notice">
     💡 <b>주간 업데이트 체크리스트</b><br>
-    ① 네이버 플레이스 → 각 병원 리뷰수 확인<br>
+    ① 네이버 리뷰/별점 → <b>자동 수집</b> (fetch_reviews.py 실행)<br>
     ② 구글맵 → 별점·리뷰수 확인<br>
     ③ 인스타그램 → 팔로워 수 확인<br>
     ④ <a href="https://facebook.com/ads/library" target="_blank" style="color:var(--accent)">메타 광고 라이브러리</a> → 광고 집행 여부 확인<br>
@@ -1438,8 +1438,7 @@ H.forEach((h,i)=>{
   d.className='input-card'+(h.mine?' mine':'');
   d.innerHTML=`
     <h3>${h.mine?'🏠 ':''}${h.name}</h3>
-    <div class="form-row"><label>네이버 별점</label><input id="f${i}ns" type="number" step=".01" min="1" max="5" value="${h.naver_star??''}"></div>
-    <div class="form-row"><label>네이버 리뷰수</label><input id="f${i}nr" type="number" value="${h.naver_review??''}"></div>
+    <div class="form-row" style="color:var(--text3);font-size:11px">네이버 별점/리뷰수: 자동 수집 (fetch_reviews.py)</div>
     <div class="form-row"><label>구글 별점</label><input id="f${i}gs" type="number" step=".1" value="${h.google_star??''}"></div>
     <div class="form-row"><label>구글 리뷰수</label><input id="f${i}gr" type="number" value="${h.google_review??''}"></div>
     <div class="form-row"><label>인스타 팔로워</label><input id="f${i}ig" type="number" value="${h.insta??''}"></div>
@@ -1468,8 +1467,6 @@ H.forEach((h,i)=>{
 
 function save(i){
   const h=H[i];
-  const ns=document.getElementById(`f${i}ns`).value; if(ns) h.naver_star=parseFloat(ns);
-  const nr=document.getElementById(`f${i}nr`).value; if(nr) h.naver_review=parseInt(nr);
   const gs=document.getElementById(`f${i}gs`).value; if(gs) h.google_star=parseFloat(gs);
   const gr=document.getElementById(`f${i}gr`).value; if(gr) h.google_review=parseInt(gr);
   const ig=document.getElementById(`f${i}ig`).value; if(ig) h.insta=parseInt(ig);
