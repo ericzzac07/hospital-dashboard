@@ -352,8 +352,8 @@ function checkPw(){
 <div id="tab-trend" class="section">
   <div class="trend-notice">
     📌 <b>트렌드 추적 안내</b><br>
-    매주 또는 매월 네이버 리뷰수·인스타 팔로워를 직접 확인해서 "데이터 입력" 탭에 기록하면 아래 차트가 자동으로 채워집니다.<br>
-    현재는 <b>2026.04.02</b> 시작점 데이터만 입력되어 있습니다. 다음 주부터 추적을 시작하세요.
+    네이버 리뷰는 자동 수집(fetch_reviews.py), 인스타·구글은 데이터 입력 탭에서 기록합니다.<br>
+    수집 시점이 추가될수록 아래 차트와 인사이트가 정교해집니다. 현재 <b>2회 수집 완료</b> (26.03.05, 26.04.02).
   </div>
   <div class="chart-grid">
     <div class="chart-card" style="grid-column:1/-1">
@@ -369,6 +369,9 @@ function checkPw(){
       <canvas id="c-trend-google" style="max-height:200px"></canvas>
     </div>
   </div>
+
+  <!-- 월간 변동 인사이트 (동적) -->
+  <div id="trend-insights" style="margin-top:24px"></div>
 
   <div class="sec-title" style="margin-top:28px">네이버 검색량 트렌드 <span class="tag">네이버 데이터랩 API · 상대지수 0~100</span></div>
   <div style="font-size:11px;color:var(--text3);margin-bottom:16px">검색량이 가장 많은 달을 100으로 환산한 상대값입니다. 병원 인지도·마케팅 효과를 간접적으로 확인할 수 있습니다.</div>
@@ -1195,7 +1198,7 @@ const H = [
     google_star:4.7, google_review:41,
     insta:6100,
     insta_posts_monthly:18, reels:true, story:true,
-    doctors:14, specialist:2, general:12, open_year:2022,
+    doctors:3, specialist:1, general:2, open_year:2022, // 건대점 (강남본점 14명과 별도)
     hiring:true,                              // 메디스태프 구인공고 확인
     channels:["naver","insta","kakao","meta"],
     meta_ads:true, naver_sa:true, kakao_ads:true,
@@ -1694,6 +1697,140 @@ function initTrend(){
   new Chart(document.getElementById('c-trend-review'),{type:'line',data:{datasets:makeDS('nr')},options:{...lineOpts,scales:{...lineOpts.scales,x:{...lineOpts.scales.x,type:'category'}}}});
   new Chart(document.getElementById('c-trend-insta'),{type:'line',data:{datasets:makeDS('ig')},options:{...lineOpts,scales:{...lineOpts.scales,x:{...lineOpts.scales.x,type:'category'}}}});
   new Chart(document.getElementById('c-trend-google'),{type:'line',data:{datasets:makeDS('gr')},options:{...lineOpts,scales:{...lineOpts.scales,x:{...lineOpts.scales.x,type:'category'}}}});
+
+  // ── 월간 변동 인사이트 ──
+  (function(){
+    const box = document.getElementById('trend-insights');
+    if(!box) return;
+    const hasRec = H.every(h=>h.records && h.records.length>=2);
+    if(!hasRec) return;
+
+    const changes = H.map(h=>{
+      const prev=h.records[h.records.length-2], cur=h.records[h.records.length-1];
+      const nrDiff=(cur.nr||0)-(prev.nr||0);
+      const pD=prev.d.split('.'), cD=cur.d.split('.');
+      const days=Math.max(1,Math.round((new Date(2000+parseInt(cD[0]),parseInt(cD[1])-1,parseInt(cD[2]))-new Date(2000+parseInt(pD[0]),parseInt(pD[1])-1,parseInt(pD[2])))/86400000));
+      const velocity=nrDiff/days*30;
+      const openYrs=h.open_year?(2026-h.open_year):null;
+      const reviewPerYear=openYrs?(h.naver_review/openYrs):null;
+      return {
+        name:h.name.replace('건대예쁨주의쁨의원','우리병원'),
+        mine:h.mine, nrDiff, days, velocity,
+        totalNr:h.naver_review, doctors:h.doctors,
+        openYrs, reviewPerYear, prevD:prev.d, curD:cur.d,
+        insta:h.insta, igDiff:(cur.ig||0)-(prev.ig||0)
+      };
+    });
+
+    // 순위 (리뷰 증가 속도 기준)
+    const ranked=[...changes].sort((a,b)=>b.velocity-a.velocity);
+    const myRank=ranked.findIndex(c=>c.mine)+1;
+    const top=ranked[0];
+
+    // 의심 데이터 감지
+    const suspects=changes.filter(c=>{
+      if(!c.reviewPerYear || !c.doctors) return false;
+      const perDoc=c.reviewPerYear/c.doctors;
+      return perDoc>800; // 의사 1명당 연 800건 이상 → 비정상적
+    });
+
+    // 리뷰 감소 병원
+    const decreased=changes.filter(c=>c.nrDiff<0);
+
+    let html=`
+    <div style="background:linear-gradient(135deg,rgba(61,214,140,0.06),rgba(79,143,255,0.06));border:1px solid rgba(61,214,140,0.2);border-radius:12px;padding:20px 24px;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:700;color:var(--text1);margin-bottom:14px">📊 이번 달 변동 분석 <span style="font-size:10px;font-weight:400;color:var(--text3)">${changes[0].prevD} → ${changes[0].curD} (${changes[0].days}일간)</span></div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px">`;
+
+    // 상위 카드
+    ranked.forEach((c,i)=>{
+      const color=c.nrDiff>0?'var(--green)':c.nrDiff<0?'var(--accent2)':'var(--text3)';
+      const bg=c.mine?'rgba(255,107,107,0.12)':'rgba(0,0,0,0.2)';
+      const border=c.mine?'border:1px solid rgba(255,107,107,0.3);':'';
+      html+=`<div style="background:${bg};${border}border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:9px;color:var(--text3);margin-bottom:2px">${i+1}위 ${c.mine?'🏠 ':''}${c.name}</div>
+        <div style="font-size:18px;font-weight:700;color:${color}">${c.nrDiff>=0?'+':''}${c.nrDiff}</div>
+        <div style="font-size:9px;color:var(--text3)">월 환산 ${c.velocity.toFixed(0)}건</div>
+      </div>`;
+    });
+
+    html+=`</div>`;
+
+    // 인사이트 텍스트
+    html+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">`;
+
+    // 현황 파악
+    html+=`<div style="background:var(--surface3);border-radius:8px;padding:12px 14px">
+      <div style="font-size:10px;font-weight:700;color:var(--accent);margin-bottom:6px">📍 현황 파악</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.8;word-break:keep-all">`;
+
+    if(myRank<=3){
+      html+=`• 우리 병원 리뷰 증가 속도 <b style="color:var(--green)">${myRank}위</b> — 상위권 유지 중<br>`;
+    } else {
+      html+=`• 우리 병원 리뷰 증가 속도 <b style="color:var(--accent2)">${myRank}위</b> — 하위권, 리뷰 유도 전략 필요<br>`;
+    }
+    html+=`• 리뷰 증가 1위: <b>${top.name}</b> (+${top.nrDiff}건, 월 ${top.velocity.toFixed(0)}건 페이스)<br>`;
+    html+=`• 전체 ${changes.length}개 병원 중 ${changes.filter(c=>c.nrDiff>0).length}곳 증가, ${decreased.length}곳 감소`;
+    html+=`</div></div>`;
+
+    // 추세 & 통찰
+    html+=`<div style="background:var(--surface3);border-radius:8px;padding:12px 14px">
+      <div style="font-size:10px;font-weight:700;color:var(--yellow);margin-bottom:6px">🔮 추세 & 통찰</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.8;word-break:keep-all">`;
+
+    const mine=changes.find(c=>c.mine);
+    if(mine && mine.nrDiff>0){
+      html+=`• 우리 병원 ${mine.days}일간 +${mine.nrDiff}건 → 월 ${mine.velocity.toFixed(0)}건 페이스. `;
+      if(mine.velocity>40) html+=`<b style="color:var(--green)">좋은 성장세</b><br>`;
+      else if(mine.velocity>20) html+=`안정적 흐름<br>`;
+      else html+=`<b style="color:var(--accent2)">성장 둔화 주의</b><br>`;
+    }
+    // 시즌 인사이트
+    const month=new Date().getMonth()+1;
+    if(month>=3 && month<=5){
+      html+=`• <b style="color:var(--green)">봄 성수기</b> 진입 — 연중 최대 수요 시기. 마케팅 집중 투입 적기<br>`;
+    } else if(month>=6 && month<=8){
+      html+=`• <b style="color:var(--yellow)">여름 시즌</b> — 제모·바디 시술 수요 증가 시기<br>`;
+    } else if(month>=11 || month<=2){
+      html+=`• <b style="color:var(--accent2)">비수기</b> — 검색량 감소 구간. 고객 유지·재방문 캠페인 집중<br>`;
+    }
+
+    if(top.velocity>100){
+      html+=`• ${top.name}의 월 ${top.velocity.toFixed(0)}건 리뷰 속도는 <b style="color:var(--accent2)">이례적으로 높음</b> — 마케팅 공세 또는 리뷰 이벤트 가능성`;
+    }
+    html+=`</div></div>`;
+
+    html+=`</div>`; // grid end
+
+    // 데이터 조작 의심 경고
+    if(suspects.length>0){
+      html+=`<div style="margin-top:12px;background:rgba(255,107,107,0.08);border:1px solid rgba(255,107,107,0.25);border-radius:8px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:var(--accent2);margin-bottom:6px">⚠️ 데이터 이상 감지 — 마케팅 조작 가능성</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.8;word-break:keep-all">`;
+      suspects.forEach(s=>{
+        const perDoc=Math.round(s.reviewPerYear/s.doctors);
+        html+=`• <b>${s.name}</b>: 의사 ${s.doctors}명 대비 연간 리뷰 ${Math.round(s.reviewPerYear)}건 (의사 1인당 ${perDoc}건/년). `;
+        html+=`<span style="color:var(--accent2)">체험단·이벤트 리뷰 다수 포함 가능성 있음. 실제 내원 환자 수와 괴리가 클 수 있습니다.</span><br>`;
+      });
+      html+=`</div></div>`;
+    }
+
+    // 리뷰 감소 안내
+    if(decreased.length>0){
+      html+=`<div style="margin-top:12px;background:rgba(255,209,102,0.06);border:1px solid rgba(255,209,102,0.2);border-radius:8px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:var(--yellow);margin-bottom:6px">📉 리뷰 감소 병원 — 네이버 정책 영향</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.8;word-break:keep-all">`;
+      decreased.forEach(s=>{
+        html+=`• <b>${s.name}</b>: ${s.nrDiff}건 감소. 네이버 스팸/허위 리뷰 정리 또는 블로그 리뷰 제외에 따른 것으로 추정<br>`;
+      });
+      html+=`실제 영업 활동과 무관한 감소일 수 있으므로 매출 추정 시 참고만 하시기 바랍니다.`;
+      html+=`</div></div>`;
+    }
+
+    html+=`</div>`; // main container end
+    box.innerHTML=html;
+  })();
 
   // ── 데이터랩 차트 ──
   const DL = window.DATALAB_DATA;
