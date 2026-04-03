@@ -1351,6 +1351,16 @@ const STORAGE_KEY = 'hospital_v3_clean';
     const s=localStorage.getItem(STORAGE_KEY);
     if(!s) return;
     JSON.parse(s).forEach((d,i)=>{if(H[i]&&H[i].name===d.name)Object.assign(H[i],d);});
+    // 깨진 records 정리 (날짜 포맷 오류, nr 누락)
+    H.forEach(h=>{
+      if(!h.records) return;
+      h.records=h.records.filter(r=>r.d&&/^\d{2}\.\d{2}\.\d{2}$/.test(r.d)&&r.nr!==undefined&&!isNaN(r.nr));
+      if(h.records.length<2){
+        // 원본 records 복원을 위해 localStorage 삭제
+        localStorage.removeItem(STORAGE_KEY);
+        location.reload();
+      }
+    });
   }catch(e){}
 })();
 
@@ -1603,7 +1613,7 @@ function save(i){
   const ie=document.getElementById(`f${i}ie`).value; if(ie) h.intl_en=parseInt(ie);
   h.memo=document.getElementById(`f${i}mo`).value;
   // 트렌드 기록 갱신 (오늘 날짜 기준)
-  const today=new Date().toLocaleDateString('ko-KR',{year:'2-digit',month:'2-digit',day:'2-digit'}).replace(/\. /g,'.').replace('.','');
+  const td=new Date(); const today=String(td.getFullYear()).slice(2)+'.'+String(td.getMonth()+1).padStart(2,'0')+'.'+String(td.getDate()).padStart(2,'0');
   const last=h.records[h.records.length-1];
   const recNr=h.naver_review||0, recIg=h.insta||0, recGr=h.google_review||0;
   if(!last||last.d!==today) h.records.push({d:today,nr:recNr,ig:recIg,gr:recGr});
